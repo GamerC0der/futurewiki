@@ -1,189 +1,490 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center">
-  <div class="max-w-7xl mx-auto px-8 w-full">
-    <div class="flex justify-center">
-      <div class="text-center space-y-6 p-8">
-        <h1 class="text-6xl font-black font-futuristic bg-gradient-to-r from-gray-700 to-gray-900 bg-clip-text text-transparent tracking-wider">
-          FutureWiki
-        </h1>
-        <p class="text-xl text-gray-600 font-medium flex justify-center gap-1">
-          {#each "Surf the InterWebs".split('') as letter, i}
-            <span class="hover:text-gray-900 hover:scale-110 transition-all duration-200 cursor-default" style="transition-delay: {i * 50}ms">
-              {letter === ' ' ? '\u00A0' : letter}
-            </span>
-          {/each}
-        </p>
-        <div class="mt-8">
-          <button class="group relative bg-gray-800 hover:bg-gray-900 text-white font-semibold py-4 px-10 rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 border border-gray-700 hover:border-gray-600">
-            <span class="relative z-10">Get Started</span>
-            <div class="absolute inset-0 bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="bg-white py-12" bind:this={featuresSection}>
-  <div class="max-w-6xl mx-auto px-8">
-    <h2 class="text-4xl font-bold text-gray-800 text-center mb-16 font-futuristic transition-all duration-1000 {showFeatures ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}">
-      Features
-    </h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-      <div id="unbiased-info" class="group bg-gray-50 rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 hover:scale-105 border border-gray-200 hover:border-gray-300 transition-all duration-700 {showFeatures ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}" 
-           style="transition-delay: 200ms;">
-        <div class="w-16 h-16 bg-gray-800 group-hover:bg-gray-900 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110">
-          <svg class="w-8 h-8 text-white group-hover:text-gray-100 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-          </svg>
-        </div>
-        <h3 class="text-2xl font-bold text-gray-800 mb-4 group-hover:text-gray-900 transition-colors duration-300">Unbiased Info</h3>
-        <p class="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
-          Get factual, unbiased information from reliable sources without any hidden agendas or corporate influence.
-        </p>
-      </div>
-      
-      <div id="all-stories" class="group bg-gray-50 rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 hover:scale-105 border border-gray-200 hover:border-gray-300 transition-all duration-700 {showFeatures ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}" 
-           style="transition-delay: 400ms;">
-        <div class="w-16 h-16 bg-gray-800 group-hover:bg-gray-900 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110">
-          <svg class="w-8 h-8 text-white group-hover:text-gray-100 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-          </svg>
-        </div>
-        <h3 class="text-2xl font-bold text-gray-800 mb-4 group-hover:text-gray-900 transition-colors duration-300">All the Stories</h3>
-        <p class="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
-          Hear everything, not just what they want you to hear. All of it. Powered by Wikipedia.
-        </p>
-      </div>
-      
-      <div id="dictionary" class="group bg-gray-50 rounded-2xl p-8 hover:shadow-2xl transition-all duration-500 hover:scale-105 border border-gray-200 hover:border-gray-300 transition-all duration-700 {showFeatures ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}" 
-           style="transition-delay: 600ms;">
-        <div class="w-16 h-16 bg-gray-800 group-hover:bg-gray-900 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110">
-          <svg class="w-8 h-8 text-white group-hover:text-gray-100 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-          </svg>
-        </div>
-        <h3 class="text-2xl font-bold text-gray-800 mb-4 group-hover:text-gray-900 transition-colors duration-300">Dictionary: Built In</h3>
-        <p class="text-gray-600 leading-relaxed group-hover:text-gray-700 transition-colors duration-300">
-          Integrated dictionary and reference tools to help you understand complex terms and concepts instantly.
-        </p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<footer class="bg-gradient-to-br from-gray-900 to-gray-800 text-white py-20">
-  <div class="max-w-6xl mx-auto px-8">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
-      <div class="col-span-1 md:col-span-2">
-        <div class="flex items-center mb-6">
-          <div class="w-12 h-12 bg-gradient-to-r from-gray-700 to-gray-600 rounded-xl flex items-center justify-center mr-4">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-            </svg>
-          </div>
-          <h3 class="text-4xl font-black font-futuristic bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">FutureWiki</h3>
-        </div>
-        <p class="text-gray-300 mb-8 max-w-lg text-lg leading-relaxed">
-          Surf the InterWebs with unbiased information, comprehensive coverage, and built-in tools for a better browsing experience.
-        </p>
-
-      </div>
-      
-      <div class="bg-gray-800/50 rounded-2xl p-8 border border-gray-700/50">
-        <h4 class="text-xl font-bold mb-6 text-white">Features</h4>
-        <ul class="space-y-4">
-          <li>
-            <a href="#unbiased-info" class="group flex items-center text-gray-300 hover:text-white transition-all duration-200 cursor-pointer" on:click|preventDefault={() => scrollToCard('unbiased-info')}>
-              <div class="w-2 h-2 bg-gray-600 rounded-full mr-3 group-hover:bg-white transition-colors duration-200"></div>
-              <span class="group-hover:translate-x-1 transition-transform duration-200">Unbiased Info</span>
-            </a>
-          </li>
-          <li>
-            <a href="#all-stories" class="group flex items-center text-gray-300 hover:text-white transition-all duration-200 cursor-pointer" on:click|preventDefault={() => scrollToCard('all-stories')}>
-              <div class="w-2 h-2 bg-gray-600 rounded-full mr-3 group-hover:bg-white transition-colors duration-200"></div>
-              <span class="group-hover:translate-x-1 transition-transform duration-200">All the Stories</span>
-            </a>
-          </li>
-          <li>
-            <a href="#dictionary" class="group flex items-center text-gray-300 hover:text-white transition-all duration-200 cursor-pointer" on:click|preventDefault={() => scrollToCard('dictionary')}>
-              <div class="w-2 h-2 bg-gray-600 rounded-full mr-3 group-hover:bg-white transition-colors duration-200"></div>
-              <span class="group-hover:translate-x-1 transition-transform duration-200">Dictionary: Built In</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </div>
-    
-    <div class="border-t border-gray-700/50 mt-16 pt-8">
-      <div class="flex justify-center items-center">
-        <div class="flex items-center text-gray-400 text-sm">
-          <span>Powered by</span>
-          <div class="ml-2 px-3 py-1 bg-gray-800 rounded-lg border border-gray-700">
-            <span class="font-semibold text-white">Wikipedia</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</footer>
-
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { searchWikipedia, type SearchResult } from '$lib/wikipedia';
+  import { addToRecentSearches, loadRecentSearches } from '$lib/storage';
   
-  let featuresSection: HTMLElement;
-  let showFeatures = false;
-  
-  function scrollToCard(id: string) {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
-      });
+  let searchQuery = '';
+  let searchResults: SearchResult[] = [];
+  let isLoading = false;
+  let showResults = false;
+  let searchError = '';
+  let searchTimeout: ReturnType<typeof setTimeout>;
+  let recentSearches: string[] = [];
+  let searchInput: HTMLInputElement;
+
+  async function performSearch(query: string) {
+    if (!query.trim()) {
+      searchResults = [];
+      searchError = '';
+      return;
+    }
+
+    isLoading = true;
+    searchError = '';
+    recentSearches = addToRecentSearches(query);
+    
+    try {
+      const results = await searchWikipedia(query);
+      if (results.length > 0) {
+        searchResults = results;
+      } else {
+        searchResults = [];
+        searchError = 'No results found.';
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      searchResults = [];
+      searchError = 'Search failed.';
+    } finally {
+      isLoading = false;
     }
   }
-  
-  onMount(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          showFeatures = true;
-        }
-      });
-    }, { threshold: 0.3 });
-    
-    if (featuresSection) {
-      observer.observe(featuresSection);
+
+  function handleSearchInput() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      if (searchQuery.trim()) {
+        performSearch(searchQuery);
+        showResults = true;
+      } else {
+        searchResults = [];
+        showResults = false;
+      }
+    }, 400);
+  }
+
+  function handleSearch() {
+    if (searchQuery.trim()) {
+      performSearch(searchQuery);
+      showResults = true;
     }
+  }
+
+  function selectResult(result: SearchResult) {
+    searchQuery = result.title;
+    showResults = false;
+    goto(`/page/${result.id}/${encodeURIComponent(result.title)}`);
+  }
+
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest('.search-container')) {
+      showResults = false;
+    }
+  }
+
+  function handleImageError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.style.display = 'none';
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      showResults = false;
+      searchInput?.blur();
+    }
+  }
+
+  onMount(() => {
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleKeydown);
+    recentSearches = loadRecentSearches();
+    searchInput?.focus();
     
     return () => {
-      if (featuresSection) {
-        observer.unobserve(featuresSection);
-      }
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleKeydown);
     };
   });
 </script>
 
+<svelte:head>
+  <title>FutureWiki</title>
+</svelte:head>
+
+<div class="page">
+  <main class="main">
+    <div class="container">
+      <div class="header">
+        <h1 class="title">FutureWiki</h1>
+        <p class="subtitle">Discover unbiased information</p>
+      </div>
+      
+      <div class="search-container">
+        <form on:submit|preventDefault={handleSearch}>
+          <div class="search-input-wrapper">
+            <input
+              bind:this={searchInput}
+              bind:value={searchQuery}
+              on:input={handleSearchInput}
+              type="text"
+              placeholder="Search for anything..."
+              class="search-input"
+              autocomplete="off"
+            />
+            {#if isLoading}
+              <div class="loading">
+                <div class="loading-dots">
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                </div>
+              </div>
+            {:else if searchQuery.trim()}
+              <button
+                type="button"
+                class="clear-button"
+                on:click={() => {
+                  searchQuery = '';
+                  searchResults = [];
+                  showResults = false;
+                  searchInput?.focus();
+                }}
+              >
+                ×
+              </button>
+            {/if}
+          </div>
+        </form>
+
+        {#if showResults && (searchResults.length > 0 || searchError)}
+          <div class="results">
+            {#if searchError}
+              <div class="error">
+                <div class="error-text">{searchError}</div>
+              </div>
+            {:else if searchResults.length > 0}
+              <div class="results-list">
+                {#each searchResults as result}
+                  <button
+                    type="button"
+                    class="result-item"
+                    on:click={() => selectResult(result)}
+                  >
+                    {#if result.thumbnail}
+                      <img src={result.thumbnail} alt="" class="thumbnail" on:error={handleImageError} />
+                    {:else}
+                      <div class="thumbnail-placeholder"></div>
+                    {/if}
+                    <div class="result-content">
+                      <div class="result-title">{result.title}</div>
+                      {#if result.description}
+                        <div class="result-description">{result.description}</div>
+                      {/if}
+                    </div>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+
+      {#if !showResults && !searchQuery.trim()}
+        <div class="sections">
+          <div class="section">
+            <h3 class="section-title">Recent Searches</h3>
+            {#if recentSearches.length > 0}
+              <div class="tags">
+                {#each recentSearches as search}
+                  <button
+                    type="button"
+                    class="tag"
+                    on:click={() => {
+                      searchQuery = search;
+                      handleSearch();
+                    }}
+                  >
+                    {search}
+                  </button>
+                {/each}
+              </div>
+            {:else}
+              <p class="empty-text">No recent searches.</p>
+            {/if}
+          </div>
+
+          <div class="section">
+            <h3 class="section-title">Popular Topics</h3>
+            <div class="tags">
+              {#each ['AI', 'Climate', 'Space', 'Quantum', 'Energy', 'Bio', 'Security', 'VR'] as suggestion}
+                <button
+                  type="button"
+                  class="tag tag-blue"
+                  on:click={() => {
+                    searchQuery = suggestion;
+                    handleSearch();
+                  }}
+                >
+                  {suggestion}
+                </button>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </main>
+</div>
+
 <style>
-  ::-webkit-scrollbar {
-    width: 12px;
+  .page {
+    min-height: 100vh;
+    background-color: #f9fafb;
+    display: flex;
+    flex-direction: column;
   }
   
-  ::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 6px;
+  .main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
   }
   
-  ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #374151 0%, #6b7280 100%);
-    border-radius: 6px;
-    border: 2px solid #f1f5f9;
+  .container {
+    max-width: 512px;
+    width: 100%;
   }
   
-  ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #1f2937 0%, #4b5563 100%);
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
   }
   
+  .title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 8px;
+  }
+  
+  .subtitle {
+    color: #4b5563;
+  }
+  
+  .search-container {
+    position: relative;
+    margin-bottom: 16px;
+  }
+  
+  .search-input-wrapper {
+    position: relative;
+  }
+  
+  .search-input {
+    display: block;
+    width: 100%;
+    padding: 12px 48px 12px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    background-color: white;
+  }
+  
+  .search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 12px;
+  }
+  
+  .loading-dots {
+    display: flex;
+    gap: 4px;
+  }
+  
+  .dot {
+    width: 4px;
+    height: 4px;
+    background-color: #3b82f6;
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+  
+  .dot:nth-child(1) { animation-delay: -0.32s; }
+  .dot:nth-child(2) { animation-delay: -0.16s; }
+  
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+  
+  .clear-button {
+    position: absolute;
+    inset: 0;
+    left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 12px;
+    color: #9ca3af;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.25rem;
+  }
+  
+  .clear-button:hover {
+    color: #ef4444;
+  }
+  
+  .results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 20;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  
+  .error {
+    padding: 16px;
+    text-align: center;
+  }
+  
+  .error-text {
+    color: #ef4444;
+    font-weight: 500;
+  }
+  
+  .results-list {
+    padding: 4px;
+  }
+  
+  .result-item {
+    width: 100%;
+    padding: 12px;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .result-item:last-child {
+    border-bottom: none;
+  }
+  
+  .result-item:hover {
+    background-color: #f9fafb;
+  }
+  
+  .thumbnail {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+  
+  .thumbnail-placeholder {
+    width: 32px;
+    height: 32px;
+    background-color: #e5e7eb;
+    border-radius: 4px;
+  }
+  
+  .result-content {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .result-title {
+    font-weight: 700;
+    color: #111827;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .result-description {
+    font-size: 0.75rem;
+    color: #6b7280;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .sections {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  @media (min-width: 768px) {
+    .sections {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #111827;
+  }
+  
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .tag {
+    padding: 4px 8px;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #374151;
+    cursor: pointer;
+    background: none;
+  }
+  
+  .tag:hover {
+    background-color: #f9fafb;
+  }
+  
+  .tag-blue {
+    background-color: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+  }
+  
+  .tag-blue:hover {
+    background-color: #dbeafe;
+  }
+  
+  .empty-text {
+    color: #6b7280;
+    font-size: 0.75rem;
+  }
 </style>
 
 
