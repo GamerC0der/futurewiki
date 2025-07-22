@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { ArrowLeft } from 'lucide-svelte';
   
   let articleData: any = null;
   let isLoading = true;
@@ -558,18 +559,8 @@
 </svelte:head>
 
 <div class="page">
-  <header class="header">
-    <div class="header-container">
-      <div class="header-content">
-        <a href="/" class="logo">FutureWiki</a>
-        <nav class="nav">
-          <a href="/" class="nav-link">Home</a>
-        </nav>
-      </div>
-    </div>
-  </header>
-
   <main class="main">
+    <button class="back-btn" on:click={() => goto('/')}> <ArrowLeft size={18} style="vertical-align:middle;margin-right:4px;"/>Back</button>
     {#if error}
       <div class="error-container">
         <div class="error-content">
@@ -613,7 +604,7 @@
                     {#if isGeneratingSummary}
                       <div class="loading-content">
                         <div class="loading-spinner"></div>
-                        <span class="loading-text">Generating AI Summary...</span>
+                        <span class="loading-text">Writing an article using typing chimps</span>
                       </div>
                     {:else}
                       <div class="loading-content">
@@ -628,91 +619,82 @@
             
 
 
-            <div class="question-section">
+            <div class="question-section redesigned">
               <div class="question-header">
                 <h3 class="question-title">Ask a Question</h3>
-                <p class="question-subtitle">
-                  Get specific answers about this topic 
-               
-                </p>
+                <p class="question-subtitle">Get specific answers about this topic</p>
               </div>
-              
-              <div class="question-input-container">
-                <input
-                  type="text"
-                  bind:value={questionInput}
-                  placeholder="Ask anything about this topic..."
-                  class="question-input"
-                  on:keydown={(e) => {
-                    if (e.key === 'Enter' && questionInput.trim()) {
-                      askQuestion(questionInput, articleData.title, articleData.extract);
-                    }
-                  }}
-                />
-                <button
-                  class="ask-button"
-                  on:click={() => askQuestion(questionInput, articleData.title, articleData.extract)}
-                  disabled={isAskingQuestion || !questionInput.trim()}
-                >
-                  {isAskingQuestion ? 'Asking...' : 'Ask'}
-                </button>
-              </div>
-              
-              {#if !showQuestionAnswer && !isAskingQuestion}
-                <div class="suggestions-section">
-                  <h4 class="suggestions-title">
-                    Suggested Questions
-                    {#if isGeneratingSuggestions}
-                      <span class="generating-indicator">Generating...</span>
+              <div class="question-card">
+                <div class="question-input-row">
+                  <input
+                    type="text"
+                    bind:value={questionInput}
+                    placeholder="Type your question..."
+                    class="question-input-lg"
+                    on:keydown={(e) => {
+                      if (e.key === 'Enter' && questionInput.trim()) {
+                        askQuestion(questionInput, articleData.title, articleData.extract);
+                      }
+                    }}
+                  />
+                  <button
+                    class="ask-button-lg"
+                    on:click={() => askQuestion(questionInput, articleData.title, articleData.extract)}
+                    disabled={isAskingQuestion || !questionInput.trim()}
+                  >
+                    {isAskingQuestion ? 'Asking...' : 'Ask'}
+                  </button>
+                </div>
+                <hr class="question-divider" />
+                {#if !showQuestionAnswer && !isAskingQuestion}
+                  <div class="suggestions-section">
+                    <div class="suggestions-title">Suggestions:</div>
+                    <div class="suggestions-list-lg">
+                      {#each suggestedQuestions as suggestion}
+                        <button
+                          class="suggestion-button-lg"
+                          on:click={() => {
+                            questionInput = suggestion;
+                            askQuestion(suggestion, articleData.title, articleData.extract);
+                          }}
+                          disabled={isGeneratingSuggestions}
+                        >
+                          {suggestion}
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+                {#if showQuestionAnswer}
+                  <div class="answer-section-lg">
+                    {#if questionAnswer}
+                      <div class="answer-content-lg">
+                        <h4 class="answer-title-lg">Answer</h4>
+                        <div class="answer-text-lg">{questionAnswer}</div>
+                      </div>
+                    {:else if isAskingQuestion}
+                      <div class="loading-message">
+                        <div class="loading-content">
+                          <div class="loading-spinner"></div>
+                          <span class="loading-text">Finding answer...</span>
+                        </div>
+                      </div>
                     {/if}
-                  </h4>
-                  <div class="suggestions-list">
-                    {#each suggestedQuestions as suggestion}
-                      <button
-                        class="suggestion-button"
-                        on:click={() => {
-                          questionInput = suggestion;
-                          askQuestion(suggestion, articleData.title, articleData.extract);
-                        }}
-                        disabled={isGeneratingSuggestions}
-                      >
-                        {suggestion}
-                      </button>
-                    {/each}
                   </div>
-                </div>
-              {/if}
-              
+                {/if}
+              </div>
               {#if questionHistory.length > 0}
-                <div class="history-section">
-                  <h4 class="history-title">Recent Questions</h4>
-                  <div class="history-list">
+                <div class="history-section-lg">
+                  <h4 class="history-title-lg">Recent Questions</h4>
+                  <div class="history-list-lg">
                     {#each questionHistory as item}
-                      <div class="history-item">
-                        <div class="history-question">{item.question}</div>
-                        <div class="history-answer">{item.answer}</div>
-                        <div class="history-time">{item.timestamp.toLocaleTimeString()}</div>
+                      <div class="history-item-lg">
+                        <div class="history-question-lg">{item.question}</div>
+                        <div class="history-answer-lg">{item.answer}</div>
+                        <div class="history-time-lg">{item.timestamp.toLocaleTimeString()}</div>
                       </div>
                     {/each}
                   </div>
-                </div>
-              {/if}
-              
-              {#if showQuestionAnswer}
-                <div class="answer-section">
-                  {#if questionAnswer}
-                    <div class="answer-content">
-                      <h4 class="answer-title">Answer</h4>
-                      <div class="answer-text">{questionAnswer}</div>
-                    </div>
-                  {:else if isAskingQuestion}
-                    <div class="loading-message">
-                      <div class="loading-content">
-                        <div class="loading-spinner"></div>
-                        <span class="loading-text">Finding answer...</span>
-                      </div>
-                    </div>
-                  {/if}
                 </div>
               {/if}
             </div>
@@ -1701,6 +1683,26 @@
     height: 24px;
   }
   
+  .back-btn {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background-color: #f3f4f6;
+    color: #374151;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    z-index: 10;
+  }
+  
+  .back-btn:hover {
+    background-color: #e5e7eb;
+  }
+  
   @media (max-width: 768px) {
     .article-header {
       padding: 32px 24px 24px;
@@ -1723,5 +1725,139 @@
     .content-body {
       padding: 24px;
     }
+  }
+  .question-section.redesigned {
+    margin-top: 40px;
+    margin-bottom: 40px;
+  }
+  .question-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 32px 24px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .question-header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .question-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .question-input-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .question-input-lg {
+    flex: 1;
+    padding: 16px 18px;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .question-input-lg:focus {
+    border-color: #3b82f6;
+  }
+  .ask-button-lg {
+    padding: 0 24px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    height: 48px;
+  }
+  .ask-button-lg:disabled {
+    background: #a5b4fc;
+    cursor: not-allowed;
+  }
+  .question-divider {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 16px 0;
+  }
+  .suggestions-section {
+    margin-bottom: 12px;
+  }
+  .suggestions-title {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .suggestions-list-lg {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .suggestion-button-lg {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 0.98rem;
+    color: #374151;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .suggestion-button-lg:hover {
+    background: #e0e7ff;
+  }
+  .answer-section-lg {
+    margin-top: 18px;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 18px 16px;
+  }
+  .answer-title-lg {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .answer-text-lg {
+    font-size: 1rem;
+    color: #374151;
+  }
+  .history-section-lg {
+    margin-top: 32px;
+  }
+  .history-title-lg {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .history-list-lg {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .history-item-lg {
+    background: #f3f4f6;
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+  .history-question-lg {
+    font-weight: 500;
+    color: #1e293b;
+  }
+  .history-answer-lg {
+    color: #374151;
+    margin-top: 4px;
+  }
+  .history-time-lg {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 2px;
   }
 </style> 

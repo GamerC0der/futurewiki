@@ -26,5 +26,10 @@
 		"onlyBuiltDependencies": [
 			"esbuild"
 		]
+	},
+	"dependencies": {
+		"lucide-svelte": "^0.525.0",
+		"marked": "4.3.0",
+		"svelte-markdown": "^0.4.1"
 	}
 }
