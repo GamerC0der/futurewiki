@@ -3,6 +3,8 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ArrowLeft } from 'lucide-svelte';
+  import { Book } from 'lucide-svelte';
+  import { MessageCircle } from 'lucide-svelte';
   
   let articleData: any = null;
   let isLoading = true;
@@ -559,8 +561,25 @@
 </svelte:head>
 
 <div class="page">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <span class="sidebar-logo-fw">FW</span>
+      <span class="sidebar-logo-full">FutureWiki</span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-indicator" style="transform: translateY(0);"></div>
+      <button class="nav-item active" on:click={() => goto('/')} aria-label="Wiki">
+        <span class="nav-icon"><Book size={20} /></span>
+        <span class="nav-tooltip">Wiki</span>
+      </button>
+      <button class="nav-item" aria-label="Chat" disabled>
+        <span class="nav-icon"><MessageCircle size={20} /></span>
+        <span class="nav-tooltip">Chat</span>
+      </button>
+    </nav>
+  </div>
   <main class="main">
-    <button class="back-btn" on:click={() => goto('/')}> <ArrowLeft size={18} style="vertical-align:middle;margin-right:4px;"/>Back</button>
+    <button class="back-btn top-right" on:click={() => goto('/')}>Back <ArrowLeft size={18} style="vertical-align:middle;margin-left:4px;"/></button>
     {#if error}
       <div class="error-container">
         <div class="error-content">
@@ -884,7 +903,143 @@
     min-height: 100vh;
     background-color: #f9fafb;
     display: flex;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  .sidebar {
+    width: 84px;
+    background: linear-gradient(180deg, #f1f5f9 0%, #e0e7ef 100%);
+    border-right: 1px solid #e5e7eb;
+    display: flex;
     flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 10;
+    box-shadow: 2px 0 16px 0 rgba(59,130,246,0.04);
+    transition: width 0.22s cubic-bezier(.4,1.4,.6,1), background 0.22s, box-shadow 0.22s;
+  }
+  .sidebar:hover {
+    width: 220px;
+    background: linear-gradient(180deg, #e0e7ef 0%, #f1f5f9 100%);
+    box-shadow: 4px 0 32px 0 rgba(59,130,246,0.13), 0 2px 16px 0 rgba(59,130,246,0.07);
+  }
+  .sidebar-logo {
+    font-size: 1.18rem;
+    font-weight: 800;
+    color: #2563eb;
+    letter-spacing: -0.01em;
+    margin-bottom: 32px;
+    text-align: center;
+    width: 100%;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    position: relative;
+  }
+  .sidebar-logo-fw {
+    display: inline-block;
+    transition: opacity 0.18s;
+  }
+  .sidebar-logo-full {
+    display: inline-block;
+    margin-left: 0.5em;
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    color: #2563eb;
+    font-size: 1.18rem;
+    transform: translateX(-12px);
+    transition: opacity 0.18s, max-width 0.22s cubic-bezier(.4,1.4,.6,1), transform 0.22s cubic-bezier(.4,1.4,.6,1);
+  }
+  .sidebar:hover .sidebar-logo-fw {
+    opacity: 0;
+  }
+  .sidebar:hover .sidebar-logo-full {
+    opacity: 1;
+    max-width: 200px;
+    transform: translateX(0);
+  }
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    align-items: center;
+    position: relative;
+  }
+  .nav-item {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 50px;
+    transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+    position: relative;
+    box-shadow: 0 1px 4px rgba(59,130,246,0.04);
+  }
+  .nav-item:hover {
+    background: #e0e7ef;
+    color: #1e293b;
+  }
+  .nav-item.active {
+    background: linear-gradient(90deg, #3b82f6 60%, #2563eb 100%);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(59,130,246,0.10);
+  }
+  .nav-item:hover:not(.active) {
+    background: #e0e7ef;
+    color: #1e293b;
+  }
+  .nav-item {
+    position: relative;
+  }
+  .nav-item .nav-icon {
+    transition: transform 0.18s, box-shadow 0.18s;
+  }
+  .nav-item.active .nav-icon {
+    transform: scale(1.18);
+    box-shadow: 0 2px 8px #3b82f633;
+  }
+  .tooltip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 8px;
+    background: #000;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: 0.2s;
+    z-index: 1000;
+  }
+  .nav-item:hover .tooltip {
+    opacity: 1;
+  }
+  .main {
+    flex: 1;
+    padding: 32px 16px;
+    margin-left: 84px;
+    transition: margin-left 0.22s cubic-bezier(.4,1.4,.6,1);
+  }
+  .sidebar:hover ~ .main {
+    margin-left: 220px;
   }
   
   .header {
@@ -929,11 +1084,6 @@
   
   .nav-link:hover {
     color: #111827;
-  }
-  
-  .main {
-    flex: 1;
-    padding: 32px 16px;
   }
   
   .error-container {
@@ -1686,7 +1836,7 @@
   .back-btn {
     position: absolute;
     top: 16px;
-    left: 16px;
+    right: 16px;
     background-color: #f3f4f6;
     color: #374151;
     padding: 8px 12px;
@@ -1697,6 +1847,11 @@
     cursor: pointer;
     transition: background-color 0.2s;
     z-index: 10;
+  }
+  .back-btn.top-right {
+    right: 16px;
+    left: auto;
+    top: 16px;
   }
   
   .back-btn:hover {
