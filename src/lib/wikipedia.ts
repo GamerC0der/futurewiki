@@ -15,7 +15,7 @@ export interface ImageSearchResult {
 }
 
 export async function searchWikipedia(query: string): Promise<SearchResult[]> {
-  const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=8&origin=*`;
+  const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
   const searchResponse = await fetch(searchUrl);
   const searchData = await searchResponse.json();
   

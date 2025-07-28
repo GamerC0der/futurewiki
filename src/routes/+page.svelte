@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { searchWikipedia, searchWikimediaImages, type SearchResult, type ImageSearchResult } from '$lib/wikipedia';
   import { addToRecentSearches, loadRecentSearches } from '$lib/storage';
-  import { CheckCircle, Globe, Sun, Newspaper, Wind, Thermometer, ArrowUpRight, Cloud, CloudSun, CloudRain, CloudLightning, CloudFog, CloudSnow, Book, MessageCircle, Send, History } from 'lucide-svelte';
+  import { CheckCircle, Globe, Sun, Newspaper, Wind, Thermometer, ArrowUpRight, Cloud, CloudSun, CloudRain, CloudLightning, CloudFog, CloudSnow, Book, MessageCircle, Send, History, BookOpen } from 'lucide-svelte';
   import { User, Bot } from 'lucide-svelte';
   import { Trash } from 'lucide-svelte';
   import Markdown from 'svelte-markdown';
@@ -22,7 +22,6 @@
   let selectedImage: ImageSearchResult | null = null;
   let showImageModal = false;
   let selectedResultIndex = -1;
-  let currentView = 'search';
   let selectedSource = 'auto';
   let exploreInput = '';
   let exploreResponse = '';
@@ -43,6 +42,7 @@
   let newsLoading = false;
   let newsFeedsLoaded = 0;
   let newsFeedsTotal = 0;
+  let selectedNewsArticle: number | null = null;
   let disambiguationError = '';
   let disambiguationOptions: { title: string, description: string, url: string }[] = [];
 
@@ -87,7 +87,21 @@
     'https://www.theguardian.com/world/rss',
     'https://www.washingtonpost.com/rss/world',
     'https://www.cbc.ca/cmlink/rss-world',
-    'https://www.france24.com/en/rss'
+    'https://www.france24.com/en/rss',
+    'https://feeds.feedburner.com/TechCrunch',
+    'https://www.wired.com/feed/rss',
+    'https://feeds.arstechnica.com/arstechnica/index',
+    'https://www.theverge.com/rss/index.xml',
+    'https://feeds.nature.com/nature/rss/current',
+    'https://www.science.org/rss/news_current.xml',
+    'https://feeds.bloomberg.com/markets/news.rss',
+    'https://www.ft.com/world?format=rss',
+    'https://feeds.economist.com/United-States',
+    'https://www.euronews.com/rss?level=theme&name=news',
+    'https://www.dw.com/rss/rss-en-all',
+    'https://feeds.reuters.com/Reuters/worldNews',
+    'https://www.abc.net.au/news/feed/45910/rss.xml',
+    'https://www.smh.com.au/rss/feed.xml'
   ];
 
   async function performSearch(query: string) {
@@ -114,7 +128,7 @@
             searchResults = [];
             imageResults = [];
             disambiguationError = 'This is a disambiguation page. Please select a specific topic.';
-            const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=10&origin=*`;
+            const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
             const searchResponse = await fetch(searchUrl);
             const searchData = await searchResponse.json();
             if (searchData.query?.search?.length) {
@@ -165,7 +179,7 @@
 
   async function searchWikipediaArticles(query: string) {
     try {
-      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&origin=*`;
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
       const searchResponse = await fetch(searchUrl);
       const searchData = await searchResponse.json();
       
@@ -438,56 +452,79 @@
     let articlesSet = new Map();
     newsModalArticles = [];
     newsFeedsTotal = NEWS_RSS_URLS.length;
-    await Promise.all(NEWS_RSS_URLS.map(async (url) => {
-      try {
-        const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
-        const data = await res.json();
-        if (data.items && data.items.length > 0) {
-          for (const item of data.items) {
-            if (!articlesSet.has(item.title)) {
-              articlesSet.set(item.title, item);
-              allItems.push(item);
+    
+    try {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('News loading timeout')), 10000); // 10 second timeout
+      });
+      
+      const fetchPromise = Promise.all(NEWS_RSS_URLS.map(async (url, index) => {
+        try {
+          const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
+          const data = await res.json();
+          if (data.items && data.items.length > 0) {
+            for (const item of data.items) {
+              if (!articlesSet.has(item.title)) {
+                articlesSet.set(item.title, item);
+                allItems.push(item);
+              }
             }
           }
+        } catch (error) {
+          console.error('Failed to fetch news from:', url, error);
+        } finally {
+          newsFeedsLoaded++;
         }
-      } catch {}
-      newsFeedsLoaded++;
-      if (newsModalArticles.length < 3) {
-        const uniqueItems = Array.from(articlesSet.values());
-        uniqueItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-        newsModalArticles = uniqueItems.slice(0, 3).map((item: any) => ({
+      }));
+      
+      await Promise.race([fetchPromise, timeoutPromise]);
+      
+      const uniqueItems = Array.from(articlesSet.values());
+      uniqueItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+      newsModalArticles = uniqueItems.slice(0, 20).map((item: any) => ({
+        title: item.title,
+        description: item.description || 'No description available',
+        url: item.link,
+        publishedAt: new Date(item.pubDate).toLocaleDateString(),
+        thumbnail: item.thumbnail || null
+      }));
+      
+      if (newsModalArticles.length > 0) {
+        newsSummary = newsModalArticles[0].title;
+        newsModalData = newsModalArticles[0];
+      } else {
+        newsSummary = 'No news available.';
+        newsModalArticles = [];
+      }
+    } catch (error) {
+      console.error('Failed to fetch news:', error);
+      if (error instanceof Error && error.message === 'News loading timeout') {
+        // Show articles that were loaded before timeout
+        const loadedArticles = Array.from(articlesSet.values());
+        loadedArticles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+        newsModalArticles = loadedArticles.slice(0, 20).map((item: any) => ({
           title: item.title,
           description: item.description || 'No description available',
           url: item.link,
           publishedAt: new Date(item.pubDate).toLocaleDateString(),
           thumbnail: item.thumbnail || null
         }));
+        
         if (newsModalArticles.length > 0) {
-          newsSummary = newsModalArticles[0].title;
+          newsSummary = `${newsModalArticles.length} articles loaded`;
           newsModalData = newsModalArticles[0];
+        } else {
+          newsSummary = 'No articles loaded before timeout.';
+          newsModalArticles = [];
         }
+      } else {
+        newsSummary = 'Failed to load news.';
+        newsModalArticles = [];
       }
-      if (newsFeedsLoaded === newsFeedsTotal) {
-        newsLoading = false;
-      }
-    }));
-    const uniqueItems = Array.from(articlesSet.values());
-    uniqueItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-    newsModalArticles = uniqueItems.slice(0, 3).map((item: any) => ({
-      title: item.title,
-      description: item.description || 'No description available',
-      url: item.link,
-      publishedAt: new Date(item.pubDate).toLocaleDateString(),
-      thumbnail: item.thumbnail || null
-    }));
-    if (newsModalArticles.length > 0) {
-      newsSummary = newsModalArticles[0].title;
-      newsModalData = newsModalArticles[0];
-    } else {
-      newsSummary = 'No news available.';
-      newsModalArticles = [];
+    } finally {
+      newsLoading = false;
+      newsFeedsLoaded = newsFeedsTotal; // Ensure counter is complete
     }
-    newsLoading = false;
   }
 
   onMount(() => {
@@ -539,6 +576,30 @@
         const el = document.getElementById('chat-messages');
         if (el) el.scrollTop = el.scrollHeight;
       }, 50);
+    }
+  }
+
+  function selectNewsArticle(index: number) {
+    selectedNewsArticle = index;
+  }
+
+  function getNewsSource(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname.replace('www.', '');
+    } catch {
+      return 'Unknown';
+    }
+  }
+
+  function shareArticle(article: { title: string, url: string }) {
+    if (navigator.share) {
+      navigator.share({
+        title: article.title,
+        url: article.url
+      });
+    } else {
+      navigator.clipboard.writeText(`${article.title}\n${article.url}`);
     }
   }
 
@@ -654,31 +715,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </svelte:head>
 
-<div class="page">
-  <div class="sidebar">
-    <div class="sidebar-logo">
-      <span class="sidebar-logo-fw">FW</span>
-      <span class="sidebar-logo-full">FutureWiki</span>
-    </div>
-    <nav class="sidebar-nav">
-      <div class="nav-indicator" style="transform: translateY({currentView === 'search' ? 0 : currentView === 'explore' ? 80 : 160}px);"></div>
-      <button class="nav-item {currentView === 'search' ? 'active' : ''}" on:click={() => currentView = 'search'} aria-label="Wiki">
-        <span class="nav-icon"><Book size={20} /></span>
-        <span class="nav-tooltip">Wiki</span>
-      </button>
-      <button class="nav-item {currentView === 'explore' ? 'active' : ''}" on:click={() => currentView = 'explore'} aria-label="Chat">
-        <span class="nav-icon"><MessageCircle size={20} /></span>
-        <span class="nav-tooltip">Chat</span>
-      </button>
-      <button class="nav-item {currentView === 'history' ? 'active' : ''}" on:click={() => currentView = 'history'} aria-label="History">
-        <span class="nav-icon"><History size={20} /></span>
-        <span class="nav-tooltip">History</span>
-      </button>
-    </nav>
-  </div>
-  <main class="main">
-    {#if currentView === 'search'}
-      <div class="container">
+<div class="container">
         <div class="header">
           <h1 class="title">FutureWiki</h1>
           <p class="subtitle">Discover unbiased information</p>
@@ -849,6 +886,7 @@
               {/each}
             </div>
           </div>
+
         </div>
         <div class="niptu-bottom-row" style="gap: 48px; margin-top: 32px;">
           <div class="niptu-card niptu-bottom-left" on:click={() => showWeatherModal = true} style="cursor:pointer;">
@@ -867,138 +905,6 @@
           </div>
         </div>
       {/if}
-    </div>
-    {:else if currentView === 'explore'}
-      <div class="chat-container">
-        <div class="chat-messages" id="chat-messages">
-          {#each conversationHistory as msg, index}
-            <div class="message {msg.role}">
-              <div class="bubble-avatar">
-                {#if msg.role === 'user'}
-                  <User size={22} />
-                {:else}
-                  <Bot size={22} />
-                {/if}
-              </div>
-              <div class="bubble-content">
-                <div class="message-text">{@html convertMarkdownToHtml(msg.content)}</div>
-                <div class="message-meta">{msg.role === 'user' ? 'You' : 'AI'} • {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-              </div>
-            </div>
-          {/each}
-          {#if isExploring}
-            <div class="message assistant loading">
-              <div class="bubble-avatar"><Bot size={22} /></div>
-              <div class="bubble-content">
-                <div class="chat-loading-spinner"></div>
-                <div class="chat-loading-message">Thinking hard... fetching the best answer for you!</div>
-              </div>
-            </div>
-          {/if}
-        </div>
-        <form class="chat-input-bar" on:submit|preventDefault={handleChatInputSubmit}>
-          <input
-            bind:value={followUpInput}
-            on:keydown={handleFollowUpKeydown}
-            type="text"
-            placeholder="Type your question..."
-            class="chat-input"
-            autocomplete="off"
-            disabled={isExploring}
-          />
-          <button type="button" class="chat-clear-btn" on:click={() => { conversationHistory = []; followUpInput = ''; }} title="Clear chat" aria-label="Clear chat" disabled={isExploring}>
-            <Trash size={20} />
-          </button>
-          <button type="submit" class="chat-send-btn" disabled={isExploring || !followUpInput.trim()}>
-            <Send size={20} />
-          </button>
-        </form>
-        {#if suggestedFollowUps.length > 0 && !isExploring}
-          <div class="suggested-followups chat-followups">
-            <div class="suggested-header">Suggested follow-ups:</div>
-            <div class="suggested-buttons">
-              {#each suggestedFollowUps.slice(0, 2) as followUp}
-                <button
-                  type="button"
-                  class="suggested-btn"
-                  on:click={() => {
-                    followUpInput = followUp;
-                    handleFollowUpSubmit();
-                  }}
-                  disabled={isExploring}
-                >
-                  {followUp}
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </main>
-  {#if currentView === 'history'}
-    <main class="main">
-      <div class="history-page-full-centered">
-        <div class="history-title history-title-main">History</div>
-        <div class="history-section">
-          <div class="history-section-header">Wiki</div>
-          {#if recentSearches.length > 0}
-          <div class="history-cards-grid">
-            {#each recentSearches.slice(0,12) as search (search)}
-              {@const wiki = getWikiResult(search)}
-              <div class="history-card history-card-wiki fade-in">
-                <div class="history-card-avatar wiki-avatar"><Book size={22} /></div>
-                <div class="history-card-header">
-                  <span class="history-card-title">{wiki.title}</span>
-                </div>
-                {#if (wiki as any).thumbnail}
-                  <img class="history-card-thumb" src={(wiki as any).thumbnail} alt={wiki.title} />
-                {/if}
-                {#if wiki.description}
-                  <div class="history-card-desc">{wiki.description}</div>
-                {/if}
-                <div class="history-card-actions">
-                  <a class="history-card-link-btn" href={(wiki as any).url} target="_blank">View Article</a>
-                  <button class="history-card-action" on:click={() => { searchQuery = wiki.title; currentView = 'search'; handleSearch(); }}>Search Again</button>
-                </div>
-              </div>
-            {/each}
-          </div>
-          {:else}
-          <div class="history-empty-modern">
-            {@html emptySvg}
-            <div class="history-empty-title">No Wiki History</div>
-            <div class="history-empty-desc">Your recent Wikipedia searches will appear here.</div>
-          </div>
-          {/if}
-        </div>
-        <div class="history-section">
-          <div class="history-section-header">Chat</div>
-          {#if conversationHistory.length > 0}
-          <div class="history-cards-grid">
-            {#each conversationHistory.filter(msg => msg.role === 'user').slice(-12).reverse() as msg, i}
-              <div class="history-card history-card-chat fade-in">
-                <div class="history-card-avatar chat-avatar"><MessageCircle size={22} /></div>
-                <div class="history-card-header">
-                  <span class="history-card-title">You</span>
-                </div>
-                <div class="history-card-desc">{msg.content}</div>
-                <div class="history-card-actions">
-                  <button class="history-card-action" on:click={() => { exploreInput = msg.content; currentView = 'explore'; }}>Chat Again</button>
-                </div>
-              </div>
-            {/each}
-          </div>
-          {:else}
-          <div class="history-empty-modern">
-            No History
-          </div>
-          {/if}
-        </div>
-      </div>
-    </main>
-  {/if}
-</div>
 
 {#if showImageModal && selectedImage}
   <div class="modal-overlay" on:click={closeImageModal}>
@@ -1067,203 +973,128 @@
 {/if}
 
 {#if showNewsModal}
-  <div class="modal-overlay" on:click={() => showNewsModal = false}>
-    <div class="modal-content news-modal" on:click|stopPropagation>
-      <button class="modal-close" on:click={() => showNewsModal = false}>×</button>
-      <div class="news-modal-header">
-        <span class="news-modal-icon">
-          <Newspaper size={40} />
-        </span>
-        <div class="news-modal-title">Latest News</div>
-      </div>
-      {#if newsLoading}
-        <div class="news-modal-body" style="text-align:center;padding:32px 0;">
-          <div class="loading-spinner" style="margin:0 auto 16px auto;width:32px;height:32px;border:4px solid #e5e7eb;border-top:4px solid #3b82f6;border-radius:50%;animation:spin 1s linear infinite;"></div>
-          <div>Loading news... ({newsFeedsLoaded}/{newsFeedsTotal})</div>
+  <div class="modal-overlay news-modal-overlay" on:click={() => showNewsModal = false}>
+    <div class="news-modal-container" on:click|stopPropagation>
+      <div class="news-modal-sidebar">
+        <div class="news-sidebar-header">
+          <div class="news-sidebar-title">
+            <Newspaper size={24} />
+            <span>News Reader</span>
+          </div>
+          <button class="news-modal-close" on:click={() => showNewsModal = false}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-      {/if}
-      {#if newsModalArticles.length > 0}
-        <div class="news-modal-body">
-          {#each newsModalArticles as article}
-            <div class="news-modal-article" style="margin-bottom: 32px;">
-              {#if article.thumbnail}
-                <img src={article.thumbnail} alt={article.title} class="news-article-img" style="max-width: 100%; border-radius: 8px; margin-bottom: 12px;" />
-              {:else}
-                <div class="news-article-img-placeholder" style="width:100%;height:120px;background:#e5e7eb;border-radius:8px;margin-bottom:12px;"></div>
-              {/if}
-              <h3 class="news-article-title">{article.title}</h3>
-              <div class="news-article-meta">
-                <span class="news-publish-date">{article.publishedAt}</span>
-              </div>
-              <div class="news-article-description">{article.description}</div>
-              <a href={article.url} target="_blank" rel="noopener noreferrer" class="news-read-more">
-                Read Full Article
-                <ArrowUpRight size={16} />
-              </a>
+        
+        {#if newsLoading}
+          <div class="news-loading-container">
+            <div class="news-loading-spinner"></div>
+            <div class="news-loading-text">Loading news... ({newsFeedsLoaded}/{newsFeedsTotal})</div>
+            <div class="news-loading-progress">
+              <div class="news-progress-bar" style="width: {(newsFeedsLoaded / newsFeedsTotal) * 100}%"></div>
             </div>
-          {/each}
-        </div>
-      {/if}
+          </div>
+        {:else}
+          <div class="news-articles-list">
+            {#each newsModalArticles as article, index}
+              <div 
+                class="news-article-item {selectedNewsArticle === index ? 'active' : ''}" 
+                on:click={() => selectNewsArticle(index)}
+              >
+                {#if article.thumbnail}
+                  <img 
+                    src={article.thumbnail} 
+                    alt={article.title} 
+                    class="news-item-thumbnail" 
+                    on:error={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (target && target.nextElementSibling) {
+                        target.style.display = 'none';
+                        (target.nextElementSibling as HTMLElement).style.display = 'block';
+                      }
+                    }}
+                  />
+                  <div class="news-item-thumbnail-placeholder" style="display: none;"></div>
+                {:else}
+                  <div class="news-item-thumbnail-placeholder"></div>
+                {/if}
+                <div class="news-item-content">
+                  <h4 class="news-item-title">{article.title}</h4>
+                  <div class="news-item-meta">
+                    <span class="news-item-date">{article.publishedAt}</span>
+                    <span class="news-item-source">{getNewsSource(article.url)}</span>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      
+      <div class="news-modal-content">
+        {#if selectedNewsArticle !== null && newsModalArticles[selectedNewsArticle]}
+          {@const article = newsModalArticles[selectedNewsArticle]}
+          <div class="news-article-reader">
+            <div class="news-article-header">
+              <div class="news-article-source-badge">{getNewsSource(article.url)}</div>
+              <div class="news-article-date">{article.publishedAt}</div>
+            </div>
+            
+            <h1 class="news-article-title-large">{article.title}</h1>
+            
+            {#if article.thumbnail}
+              <div class="news-article-hero">
+                <img 
+                  src={article.thumbnail} 
+                  alt={article.title} 
+                  class="news-article-hero-img" 
+                  on:error={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target) {
+                      target.style.display = 'none';
+                    }
+                  }}
+                />
+              </div>
+            {/if}
+            
+            <div class="news-article-body">
+              <div class="news-article-description-large">{article.description}</div>
+              
+              <div class="news-article-actions">
+                <a href={article.url} target="_blank" rel="noopener noreferrer" class="news-read-full-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Read Full Article
+                </a>
+                <button class="news-share-btn" on:click={() => shareArticle(article)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                  Share
+                </button>
+              </div>
+            </div>
+          </div>
+        {:else}
+          <div class="news-empty-state">
+            <Newspaper size={48} />
+            <h3>Select an article to read</h3>
+            <p>Choose from the latest news headlines in the sidebar</p>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}
 
-<style>
-  .page {
-    min-height: 100vh;
-    background-color: #f9fafb;
-    display: flex;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  
-  .sidebar {
-    width: 84px;
-    background: #f8fafc;
-    border-right: 1px solid #e5e7eb;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding-top: 40px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 10;
-    transition: width 0.15s ease;
-  }
-  .sidebar:hover {
-    width: 220px;
-  }
-  .sidebar-logo {
-    font-size: 1.18rem;
-    font-weight: 800;
-    color: #222;
-    letter-spacing: -0.01em;
-    margin-bottom: 32px;
-    text-align: center;
-    width: 100%;
-    user-select: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 32px;
-    position: relative;
-  }
-  .sidebar-logo-fw {
-    display: inline-block;
-    transition: opacity 0.18s;
-  }
-  .sidebar-logo-full {
-    display: inline-block;
-    margin-left: 0.5em;
-    opacity: 0;
-    max-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    color: #222;
-    font-size: 1.18rem;
-    transform: translateX(-12px);
-    transition: opacity 0.18s, max-width 0.22s cubic-bezier(.4,1.4,.6,1), transform 0.22s cubic-bezier(.4,1.4,.6,1);
-  }
-  .sidebar:hover .sidebar-logo-fw {
-    opacity: 0;
-  }
-  .sidebar:hover .sidebar-logo-full {
-    opacity: 1;
-    max-width: 200px;
-    transform: translateX(0);
-  }
-  .sidebar-nav {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    width: 100%;
-    align-items: center;
-    position: relative;
-  }
-  
-  .nav-item {
-    width: 56px;
-    height: 56px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    color: #222;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 50px;
-    transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-    position: relative;
-    box-shadow: 0 1px 4px rgba(59,130,246,0.04);
-  }
-  
-  .nav-item:hover {
-    background: #ececec;
-    color: #222;
-  }
-  
-  .nav-item.active {
-    background: #ececec;
-    color: #222;
-    box-shadow: none;
-  }
-  
-  .nav-item:hover:not(.active) {
-    background: #e0e7ef;
-    color: #1e293b;
-  }
-  
-  .nav-item {
-    position: relative;
-  }
-  
-  .nav-item .nav-icon {
-    transition: transform 0.18s, box-shadow 0.18s;
-    color: #888;
-  }
+</div>
 
-  .nav-item.active .nav-icon {
-    transform: scale(1.18);
-    box-shadow: 0 2px 8px #3b82f633;
-    color: #222;
-  }
-  
-  .tooltip {
-    position: absolute;
-    left: 100%;
-    top: 50%;
-    transform: translateY(-50%);
-    margin-left: 8px;
-    background: #000;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    opacity: 0;
-    transition: 0.2s;
-    z-index: 1000;
-  }
-  
-  .nav-item:hover .tooltip {
-    opacity: 1;
-  }
-  
-  .main {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 32px 16px;
-    margin-left: 84px;
-    transition: margin-left 0.22s cubic-bezier(.4,1.4,.6,1);
-  }
-  .sidebar:hover ~ .main {
-    margin-left: 220px;
-  }
+<style>
+
   
   .container {
     max-width: 512px;
@@ -2262,6 +2093,299 @@
   .news-read-more:hover {
     background: #2563eb;
     transform: translateY(-1px);
+  }
+
+  /* New News Modal Styles */
+  .news-modal-overlay {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .news-modal-container {
+    display: flex;
+    width: 95vw;
+    height: 90vh;
+    max-width: 1400px;
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .news-modal-sidebar {
+    width: 380px;
+    background: #f8fafc;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .news-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background: white;
+  }
+
+  .news-sidebar-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .news-modal-close {
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+
+  .news-modal-close:hover {
+    background: #f1f5f9;
+    color: #374151;
+  }
+
+  .news-loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    text-align: center;
+  }
+
+  .news-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+  }
+
+  .news-loading-text {
+    font-size: 0.95rem;
+    color: #64748b;
+    margin-bottom: 16px;
+  }
+
+  .news-loading-progress {
+    width: 100%;
+    height: 4px;
+    background: #e2e8f0;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .news-progress-bar {
+    height: 100%;
+    background: #3b82f6;
+    transition: width 0.3s ease;
+  }
+
+  .news-articles-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+
+  .news-article-item {
+    display: flex;
+    gap: 12px;
+    padding: 16px 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+  }
+
+  .news-article-item:hover {
+    background: #f1f5f9;
+  }
+
+  .news-article-item.active {
+    background: #e0e7ef;
+    border-left-color: #3b82f6;
+  }
+
+  .news-item-thumbnail {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .news-item-thumbnail-placeholder {
+    width: 60px;
+    height: 60px;
+    background: #e2e8f0;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .news-item-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .news-item-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.4;
+    margin: 0 0 8px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .news-item-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 0.75rem;
+    color: #64748b;
+  }
+
+  .news-item-source {
+    font-weight: 500;
+    color: #3b82f6;
+  }
+
+  .news-modal-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .news-article-reader {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px;
+  }
+
+  .news-article-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .news-article-source-badge {
+    background: #3b82f6;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .news-article-date {
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+
+  .news-article-title-large {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.3;
+    margin: 0 0 32px 0;
+  }
+
+  .news-article-hero {
+    margin-bottom: 32px;
+  }
+
+  .news-article-hero-img {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: 12px;
+  }
+
+  .news-article-body {
+    max-width: 800px;
+  }
+
+  .news-article-description-large {
+    font-size: 1.2rem;
+    line-height: 1.7;
+    color: #374151;
+    margin-bottom: 32px;
+  }
+
+  .news-article-actions {
+    display: flex;
+    gap: 16px;
+    padding-top: 24px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .news-read-full-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #3b82f6;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .news-read-full-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+
+  .news-share-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #f8fafc;
+    color: #374151;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .news-share-btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+
+  .news-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #64748b;
+    text-align: center;
+  }
+
+  .news-empty-state h3 {
+    margin: 16px 0 8px 0;
+    color: #374151;
+  }
+
+  .news-empty-state p {
+    font-size: 0.95rem;
   }
 
   /* Chat UI styles */

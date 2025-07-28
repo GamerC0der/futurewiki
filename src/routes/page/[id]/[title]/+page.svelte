@@ -3,8 +3,6 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ArrowLeft } from 'lucide-svelte';
-  import { Book } from 'lucide-svelte';
-  import { MessageCircle } from 'lucide-svelte';
   
   let articleData: any = null;
   let isLoading = true;
@@ -560,25 +558,7 @@
   <title>{pageTitle} - FutureWiki</title>
 </svelte:head>
 
-<div class="page">
-  <div class="sidebar">
-    <div class="sidebar-logo">
-      <span class="sidebar-logo-fw">FW</span>
-      <span class="sidebar-logo-full">FutureWiki</span>
-    </div>
-    <nav class="sidebar-nav">
-      <div class="nav-indicator" style="transform: translateY(0);"></div>
-      <button class="nav-item active" on:click={() => goto('/')} aria-label="Wiki">
-        <span class="nav-icon"><Book size={20} /></span>
-        <span class="nav-tooltip">Wiki</span>
-      </button>
-      <button class="nav-item" aria-label="Chat" disabled>
-        <span class="nav-icon"><MessageCircle size={20} /></span>
-        <span class="nav-tooltip">Chat</span>
-      </button>
-    </nav>
-  </div>
-  <main class="main">
+<div class="article-page">
     <button class="back-btn top-right" on:click={() => goto('/')}>Back <ArrowLeft size={18} style="vertical-align:middle;margin-left:4px;"/></button>
     {#if error}
       <div class="error-container">
@@ -870,7 +850,6 @@
         </article>
       </div>
     {/if}
-  </main>
 </div>
 
 {#if showImageModal && selectedImage}
@@ -899,6 +878,12 @@
 {/if}
 
 <style>
+  .article-page {
+    min-height: 100vh;
+    background-color: #f9fafb;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 32px 16px;
+  }
   .page {
     min-height: 100vh;
     background-color: #f9fafb;

@@ -8,18 +8,6 @@
 </svelte:head>
 
 <div class="page">
-  <header class="header">
-    <div class="header-container">
-      <div class="header-content">
-        <a href="/" class="logo">FutureWiki</a>
-        <nav class="nav">
-          <a href="/" class="nav-link">Home</a>
-          <a href="/read" class="nav-link">Search</a>
-        </nav>
-      </div>
-    </div>
-  </header>
-
   <main class="main">
     <div class="error-container">
       <div class="error-content">
@@ -43,7 +31,7 @@
           class="button button-secondary"
           on:click={() => goto('/read')}
         >
-          Search FutureWiki
+          Reader
         </button>
       </div>
     </div>
@@ -56,62 +44,6 @@
     background-color: #f9fafb;
     display: flex;
     flex-direction: column;
-  }
-  
-  .header {
-    background-color: white;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    border-bottom: 1px solid #e5e7eb;
-  }
-  
-  .header-container {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 0 16px;
-  }
-  
-  @media (min-width: 640px) {
-    .header-container {
-      padding: 0 24px;
-    }
-  }
-  
-  @media (min-width: 1024px) {
-    .header-container {
-      padding: 0 32px;
-    }
-  }
-  
-  .header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    height: 64px;
-  }
-  
-  .logo {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #111827;
-    text-decoration: none;
-  }
-  
-  .logo:hover {
-    color: #374151;
-  }
-  
-  .nav {
-    display: flex;
-    gap: 32px;
-  }
-  
-  .nav-link {
-    color: #4b5563;
-    text-decoration: none;
-  }
-  
-  .nav-link:hover {
-    color: #111827;
   }
   
   .main {
