@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { searchWikipedia, searchWikimediaImages, type SearchResult, type ImageSearchResult } from '$lib/wikipedia';
+  import { searchWikipedia, searchWikimediaImages, searchWiktionary, type SearchResult, type ImageSearchResult, type DictionaryResult } from '$lib/wikipedia';
   import { addToRecentSearches, loadRecentSearches } from '$lib/storage';
-  import { CheckCircle, Globe, Sun, Newspaper, Wind, Thermometer, ArrowUpRight, Cloud, CloudSun, CloudRain, CloudLightning, CloudFog, CloudSnow, Book, MessageCircle, Send, History, BookOpen } from 'lucide-svelte';
+  import { CheckCircle, Globe, Sun, Newspaper, Wind, Thermometer, ArrowUpRight, Cloud, CloudSun, CloudRain, CloudLightning, CloudFog, CloudSnow, Book, MessageCircle, Send, History, BookOpen, Clock, TrendingUp } from 'lucide-svelte';
   import { User, Bot } from 'lucide-svelte';
   import { Trash } from 'lucide-svelte';
   import Markdown from 'svelte-markdown';
@@ -12,6 +12,7 @@
   let searchQuery = '';
   let searchResults: SearchResult[] = [];
   let imageResults: ImageSearchResult[] = [];
+  let dictionaryResults: DictionaryResult[] = [];
   let isLoading = false;
   let showResults = false;
   let searchError = '';
@@ -121,12 +122,25 @@
     recentSearches = addToRecentSearches(query);
     
     try {
-      if (searchMode === 'wiki') {
+      if (searchMode === 'dictionary') {
+        const results = await searchWiktionary(query);
+        if (results.length > 0) {
+          dictionaryResults = results;
+          searchResults = [];
+          imageResults = [];
+              } else {
+        dictionaryResults = [];
+        searchResults = [];
+        imageResults = [];
+        searchError = 'No dictionary results found. Try a different word or check spelling.';
+      }
+      } else if (searchMode === 'wiki') {
         const results = await searchWikipedia(query);
         if (results.length > 0) {
           if (results[0].description && results[0].description.toLowerCase().includes('disambiguation page')) {
             searchResults = [];
             imageResults = [];
+            dictionaryResults = [];
             disambiguationError = 'This is a disambiguation page. Please select a specific topic.';
             const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
             const searchResponse = await fetch(searchUrl);
@@ -148,10 +162,12 @@
           } else {
             searchResults = results;
             imageResults = [];
+            dictionaryResults = [];
           }
         } else {
           searchResults = [];
           imageResults = [];
+          dictionaryResults = [];
           searchError = 'No results found.';
         }
       } else {
@@ -159,9 +175,11 @@
         if (results.length > 0) {
           imageResults = results;
           searchResults = [];
+          dictionaryResults = [];
         } else {
           imageResults = [];
           searchResults = [];
+          dictionaryResults = [];
           searchError = 'No images found.';
         }
       }
@@ -455,7 +473,7 @@
     
     try {
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('News loading timeout')), 10000); // 10 second timeout
+        setTimeout(() => reject(new Error('News loading timeout')), 10000); 
       });
       
       const fetchPromise = Promise.all(NEWS_RSS_URLS.map(async (url, index) => {
@@ -499,7 +517,6 @@
     } catch (error) {
       console.error('Failed to fetch news:', error);
       if (error instanceof Error && error.message === 'News loading timeout') {
-        // Show articles that were loaded before timeout
         const loadedArticles = Array.from(articlesSet.values());
         loadedArticles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
         newsModalArticles = loadedArticles.slice(0, 20).map((item: any) => ({
@@ -523,7 +540,7 @@
       }
     } finally {
       newsLoading = false;
-      newsFeedsLoaded = newsFeedsTotal; // Ensure counter is complete
+      newsFeedsLoaded = newsFeedsTotal; 
     }
   }
 
@@ -623,7 +640,7 @@
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-4-scout',
+          model: 'qwen3-32b',
           messages,
           max_tokens: 300,
           temperature: 0.7
@@ -738,13 +755,24 @@
                 </button>
                 <button
                   type="button"
+                  class="mode-button {searchMode === 'dictionary' ? 'active' : ''}"
+                  on:click={() => searchMode = 'dictionary'}
+                  title="Dictionary"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
                   class="mode-button {searchMode === 'image' ? 'active' : ''}"
                   on:click={() => searchMode = 'image'}
                   title="Search Images"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                </svg>
+                  </svg>
                 </button>
               </div>
               <input
@@ -783,7 +811,7 @@
           </div>
         </form>
 
-        {#if showResults && ((searchResults.length > 0 || imageResults.length > 0) || searchError || disambiguationError)}
+        {#if showResults && ((searchResults.length > 0 || imageResults.length > 0 || dictionaryResults.length > 0) || searchError || disambiguationError)}
           <div class="results">
             {#if disambiguationError}
               <div class="error">
@@ -795,11 +823,48 @@
                     {/each}
                   </div>
                 {/if}
-                <button class="button button-primary" on:click={() => { showResults = false; searchQuery = ''; searchResults = []; imageResults = []; disambiguationError = ''; disambiguationOptions = []; }}>Back to Search</button>
+                <button class="button button-primary" on:click={() => { showResults = false; searchQuery = ''; searchResults = []; imageResults = []; dictionaryResults = []; disambiguationError = ''; disambiguationOptions = []; }}>Back to Search</button>
               </div>
             {:else if searchError}
               <div class="error">
                 <div class="error-text">{searchError}</div>
+              </div>
+            {:else if searchMode === 'dictionary' && dictionaryResults.length > 0}
+              <div class="results-list">
+                {#each dictionaryResults as result, index}
+                  <div class="result-item dictionary-result {selectedResultIndex === index ? 'selected' : ''}">
+                    <div class="result-content">
+                      <div class="result-title">{result.word}</div>
+                      <div class="dictionary-pos">{result.partOfSpeech}</div>
+                      {#if result.pronunciation}
+                        <div class="dictionary-pronunciation">/{result.pronunciation}/</div>
+                      {/if}
+                      {#if result.definitions.length > 0}
+                        <div class="dictionary-definitions">
+                          {#each result.definitions as definition, defIndex}
+                            <div class="definition-item">
+                              <span class="definition-number">{defIndex + 1}.</span>
+                              <span class="definition-text">{definition}</span>
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
+                      {#if result.etymology && result.etymology !== 'No etymology available'}
+                        <div class="dictionary-etymology">
+                          <strong>Etymology:</strong> {result.etymology}
+                        </div>
+                      {/if}
+                      {#if result.examples.length > 0}
+                        <div class="dictionary-examples">
+                          <strong>Examples:</strong>
+                          {#each result.examples as example}
+                            <div class="example-item">"{example}"</div>
+                          {/each}
+                        </div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
               </div>
             {:else if searchMode === 'wiki' && searchResults.length > 0}
               <div class="results-list">
@@ -849,13 +914,16 @@
       {#if !showResults && !searchQuery.trim()}
         <div class="sections">
           <div class="section">
-            <h3 class="section-title">Recent Searches</h3>
+            <h3 class="section-title">
+              <span class="section-icon"><Clock size={16} /></span>
+              Recent Searches
+            </h3>
             {#if recentSearches.length > 0}
               <div class="tags">
                 {#each recentSearches as search}
                   <button
                     type="button"
-                    class="tag"
+                    class="tag tag-recent"
                     on:click={() => {
                       searchQuery = search;
                       handleSearch();
@@ -870,7 +938,10 @@
             {/if}
           </div>
           <div class="section">
-            <h3 class="section-title">Popular Topics</h3>
+            <h3 class="section-title">
+              <span class="section-icon"><TrendingUp size={16} /></span>
+              Popular Topics
+            </h3>
             <div class="tags">
               {#each ['AI', 'Climate', 'Space', 'Quantum', 'Energy', 'Bio', 'Security', 'VR'] as suggestion}
                 <button
@@ -886,22 +957,29 @@
               {/each}
             </div>
           </div>
-
         </div>
-        <div class="niptu-bottom-row" style="gap: 48px; margin-top: 32px;">
-          <div class="niptu-card niptu-bottom-left" on:click={() => showWeatherModal = true} style="cursor:pointer;">
-            <div class="niptu-card-header">
-              <span class="niptu-icon"><Sun size={22} /></span>
-              <span class="niptu-title">Weather</span>
+        
+        <div class="quick-access">
+          <div class="quick-access-title">Quick Access</div>
+          <div class="quick-access-grid">
+            <div class="quick-access-card" on:click={() => showWeatherModal = true}>
+              <div class="quick-access-icon">
+                <Sun size={24} />
+              </div>
+              <div class="quick-access-content">
+                <div class="quick-access-label">Weather</div>
+                <div class="quick-access-value">{weatherSummary}</div>
+              </div>
             </div>
-            <div class="niptu-summary">{weatherSummary}</div>
-          </div>
-          <div class="niptu-card niptu-bottom-right" on:click={() => showNewsModal = true} style="cursor:pointer;">
-            <div class="niptu-card-header">
-              <span class="niptu-icon"><Newspaper size={22} /></span>
-              <span class="niptu-title">News</span>
+            <div class="quick-access-card" on:click={() => showNewsModal = true}>
+              <div class="quick-access-icon">
+                <Newspaper size={24} />
+              </div>
+              <div class="quick-access-content">
+                <div class="quick-access-label">News</div>
+                <div class="quick-access-value">{newsSummary}</div>
+              </div>
             </div>
-            <div class="niptu-summary">{newsSummary}</div>
           </div>
         </div>
       {/if}
@@ -1118,6 +1196,7 @@
     color: #4b5563;
     font-size: 1.125rem;
     font-weight: 500;
+    margin-bottom: 16px;
   }
   
   .search-container {
@@ -1134,9 +1213,11 @@
     display: flex;
     align-items: center;
     background-color: white;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
     overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
   }
   
   .search-mode-toggle {
@@ -1149,13 +1230,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: 48px;
+    height: 48px;
     background: none;
     border: none;
     color: #6b7280;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin: 4px;
   }
   
   .mode-button:hover {
@@ -1164,8 +1247,9 @@
   }
   
   .mode-button.active {
-    background-color: #3b82f6;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: white;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
   }
   
   .mode-button svg {
@@ -1221,12 +1305,18 @@
   
   .search-input {
     flex: 1;
-    padding: 12px 16px;
+    padding: 16px 20px;
     border: none;
-    font-size: 1rem;
+    font-size: 1.125rem;
     font-weight: 500;
     background-color: transparent;
     outline: none;
+    color: #111827;
+  }
+  
+  .search-input::placeholder {
+    color: #9ca3af;
+    font-weight: 400;
   }
   
   .search-input:focus {
@@ -1235,7 +1325,8 @@
   
   .search-input-container:focus-within {
     border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15), 0 0 0 2px rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
   }
   
   .loading {
@@ -1395,6 +1486,67 @@
   .license {
     opacity: 0.6;
   }
+
+  .dictionary-result {
+    cursor: default;
+    padding: 16px;
+  }
+
+  .dictionary-pos {
+    font-size: 0.75rem;
+    color: #3b82f6;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .dictionary-pronunciation {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+
+  .dictionary-definitions {
+    margin-bottom: 12px;
+  }
+
+  .definition-item {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+
+  .definition-number {
+    font-weight: 600;
+    color: #3b82f6;
+    min-width: 20px;
+  }
+
+  .definition-text {
+    color: #374151;
+  }
+
+  .dictionary-etymology {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 8px;
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 4px;
+  }
+
+  .dictionary-examples {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .example-item {
+    margin-top: 4px;
+    padding-left: 12px;
+    font-style: italic;
+  }
   
   .result-content {
     flex: 1;
@@ -1431,6 +1583,33 @@
     }
   }
   
+  @media (max-width: 640px) {
+    .container {
+      padding: 0 16px;
+    }
+    
+    .title {
+      font-size: 1.875rem;
+    }
+    
+    .subtitle {
+      font-size: 1rem;
+    }
+    
+    .search-input {
+      font-size: 1rem;
+      padding: 14px 16px;
+    }
+    
+    .quick-access-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .quick-access-card {
+      padding: 14px;
+    }
+  }
+  
   .section {
     display: flex;
     flex-direction: column;
@@ -1442,6 +1621,13 @@
     font-weight: 700;
     color: #111827;
     letter-spacing: 0.025em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .section-icon {
+    font-size: 1rem;
   }
   
   .tags {
@@ -1476,9 +1662,100 @@
     background-color: #dbeafe;
   }
   
+  .tag-recent {
+    background-color: #fef3c7;
+    border-color: #fde68a;
+    color: #92400e;
+  }
+  
+  .tag-recent:hover {
+    background-color: #fde68a;
+  }
+  
   .empty-text {
     color: #6b7280;
     font-size: 0.75rem;
+  }
+  
+  .quick-access {
+    margin-top: 32px;
+  }
+  
+  .quick-access-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: 0.025em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .quick-access-title::before {
+    content: "⚡";
+    font-size: 1rem;
+  }
+  
+  .quick-access-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  
+  .quick-access-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  
+  .quick-access-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    transform: translateY(-1px);
+  }
+  
+  .quick-access-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+  }
+  
+  .quick-access-content {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .quick-access-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 4px;
+  }
+  
+  .quick-access-value {
+    font-size: 0.75rem;
+    color: #6b7280;
+    line-height: 1.4;
+    white-space: pre-line;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
   
   .explore-input-container {

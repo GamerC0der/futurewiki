@@ -14,6 +14,15 @@ export interface ImageSearchResult {
   license: string;
 }
 
+export interface DictionaryResult {
+  word: string;
+  partOfSpeech: string;
+  definitions: string[];
+  etymology: string;
+  pronunciation: string;
+  examples: string[];
+}
+
 export async function searchWikipedia(query: string): Promise<SearchResult[]> {
   const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
   const searchResponse = await fetch(searchUrl);
@@ -102,3 +111,81 @@ export async function searchWikimediaImages(query: string): Promise<ImageSearchR
     };
   }).filter((result: ImageSearchResult) => result.imageUrl);
 } 
+
+export async function searchWiktionary(word: string): Promise<DictionaryResult[]> {
+  try {
+    const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    
+    if (!response.ok) {
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    if (!Array.isArray(data) || data.length === 0) {
+      return [];
+    }
+    
+    return data.map((entry: any) => {
+      const definitions: string[] = [];
+      const examples: string[] = [];
+      let etymology = '';
+      let pronunciation = '';
+      let partOfSpeech = '';
+      
+      if (entry.meanings && entry.meanings.length > 0) {
+        entry.meanings.forEach((meaning: any) => {
+          if (meaning.partOfSpeech) {
+            partOfSpeech = meaning.partOfSpeech;
+          }
+          
+          if (meaning.definitions && meaning.definitions.length > 0) {
+            meaning.definitions.forEach((def: any) => {
+              if (def.definition) {
+                definitions.push(def.definition);
+              }
+              if (def.example) {
+                examples.push(def.example);
+              }
+            });
+          }
+        });
+      }
+      
+      if (entry.phonetics && entry.phonetics.length > 0) {
+        const phonetic = entry.phonetics.find((p: any) => p.text);
+        if (phonetic && phonetic.text) {
+          pronunciation = phonetic.text;
+        }
+      }
+      
+      if (entry.etymologies && entry.etymologies.length > 0) {
+        etymology = entry.etymologies[0];
+      }
+      
+      return {
+        word: entry.word || word,
+        partOfSpeech: partOfSpeech || 'Unknown',
+        definitions,
+        etymology: etymology || 'No etymology available',
+        pronunciation: pronunciation || 'No pronunciation available',
+        examples
+      };
+    });
+  } catch (error) {
+    return [];
+  }
+}
+
+
+
+export function parseAIResponse(responseJson: any): {thinking: string; response: string } {
+  const content = responseJson.choices?.[0]?.message?.content || '';
+  
+  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+  const thinking = thinkMatch ? thinkMatch[1].trim() : '';
+
+  const response = content.replace(/<think>([\s\S]*?)<\/think>/, '').trim();
+
+  return { thinking, response };
+}
