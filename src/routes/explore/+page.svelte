@@ -7,8 +7,6 @@
   let followUpInput = '';
   let conversationHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: Date, id: string, imageUrl?: string}> = [];
   let suggestedFollowUps: string[] = [];
-  let isGeneratingFollowUps = false;
-  let isGeneratingImage = false;
 
 
   let chatContainer: HTMLElement;
@@ -17,6 +15,7 @@
   let selectedSuggestion = -1;
   let aiWelcomeMessage = '';
   let isGeneratingWelcome = false;
+  let generationTimes: Record<string, number> = {};
 
   const fallbackWelcomeMessages = [
     "What would you like to learn about today?",
@@ -87,6 +86,8 @@
     
     conversationHistory = [...conversationHistory, userMessage];
     
+    const startTime = Date.now();
+    
     try {
       const isImageRequest = query.toLowerCase().includes('generate') && query.toLowerCase().includes('image') ||
                             query.toLowerCase().includes('create') && query.toLowerCase().includes('image') ||
@@ -142,13 +143,20 @@
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const data = await response.json();
+      let aiResponse: string;
       
-      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        throw new Error('Invalid response format from AI service');
+      try {
+        const data = await response.json();
+        
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+          throw new Error('Invalid response format from AI service');
+        }
+        
+        aiResponse = data.choices[0].message.content;
+      } catch (jsonError) {
+        const textResponse = await response.text();
+        aiResponse = textResponse;
       }
-      
-      const aiResponse = data.choices[0].message.content;
       
       if (!aiResponse || typeof aiResponse !== 'string') {
         throw new Error('No valid content in AI response');
@@ -160,6 +168,9 @@
         timestamp: new Date(),
         id: generateId()
       };
+      
+      const generationTime = (Date.now() - startTime) / 1000;
+      generationTimes[assistantMessage.id] = generationTime;
       
       conversationHistory = [...conversationHistory, assistantMessage];
       
@@ -234,8 +245,15 @@
       });
       
       if (apiResponse.ok) {
-        const data = await apiResponse.json();
-        const followUpsText = data.choices[0].message.content;
+        let followUpsText: string;
+        
+        try {
+          const data = await apiResponse.json();
+          followUpsText = data.choices[0].message.content;
+        } catch (jsonError) {
+          followUpsText = await apiResponse.text();
+        }
+        
         suggestedFollowUps = followUpsText.split('\n').filter((q: string) => q.trim()).slice(0, 4);
       }
     } catch (error) {
@@ -472,6 +490,11 @@
                 </div>
               {/if}
             </div>
+            {#if msg.role === 'assistant' && generationTimes[msg.id]}
+              <div class="generation-time">
+                This generation took {generationTimes[msg.id].toFixed(1)} seconds
+              </div>
+            {/if}
           </div>
         </div>
       {/each}
@@ -775,6 +798,13 @@
   .copy-btn:hover {
     background: #f3f4f6;
     color: #374151;
+  }
+
+  .generation-time {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 8px;
+    font-style: italic;
   }
 
   .message-text {

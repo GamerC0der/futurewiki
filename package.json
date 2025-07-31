@@ -13,6 +13,7 @@
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^6.0.0",
+		"@sveltejs/adapter-vercel": "^5.8.1",
 		"@sveltejs/kit": "^2.25.1",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"svelte": "^5.0.0",
@@ -28,8 +29,6 @@
 		]
 	},
 	"dependencies": {
-		"lucide-svelte": "^0.525.0",
-		"marked": "4.3.0",
-		"svelte-markdown": "^0.4.1"
+		"lucide-svelte": "^0.525.0"
 	}
 }

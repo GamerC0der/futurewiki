@@ -6,7 +6,6 @@
   import { CheckCircle, Globe, Sun, Newspaper, Wind, Thermometer, ArrowUpRight, Cloud, CloudSun, CloudRain, CloudLightning, CloudFog, CloudSnow, Book, MessageCircle, Send, History, BookOpen, Clock, TrendingUp } from 'lucide-svelte';
   import { User, Bot } from 'lucide-svelte';
   import { Trash } from 'lucide-svelte';
-  import Markdown from 'svelte-markdown';
 
   
   let searchQuery = '';
@@ -17,22 +16,18 @@
   let showResults = false;
   let searchError = '';
   let searchTimeout: ReturnType<typeof setTimeout>;
+  let chatScrollTimeout: ReturnType<typeof setTimeout>;
   let recentSearches: string[] = [];
   let searchInput: HTMLInputElement;
   let searchMode = 'wiki';
   let selectedImage: ImageSearchResult | null = null;
   let showImageModal = false;
+  let selectedDictionaryResult: DictionaryResult | null = null;
+  let showDictionaryModal = false;
   let selectedResultIndex = -1;
-  let selectedSource = 'auto';
   let exploreInput = '';
-  let exploreResponse = '';
-  let exploreResponseHtml = '';
-  let isExploring = false;
-  let exploreError = '';
   let followUpInput = '';
   let conversationHistory: Array<{role: 'user' | 'assistant', content: string}> = [];
-  let suggestedFollowUps: string[] = [];
-  let isGeneratingFollowUps = false;
   let weatherSummary = '';
   let newsSummary = '';
   let showWeatherModal = false;
@@ -46,6 +41,12 @@
   let selectedNewsArticle: number | null = null;
   let disambiguationError = '';
   let disambiguationOptions: { title: string, description: string, url: string }[] = [];
+  let showDorpheusModal = false;
+  let isExploring = false;
+  let exploreError = '';
+  let suggestedFollowUps: string[] = [];
+  let isGeneratingFollowUps = false;
+  let lastWeatherCode = 0;
 
   const weatherCodeMap: Record<number, { desc: string; icon: string }> = {
     0: { desc: 'Clear sky', icon: '☀️' },
@@ -80,29 +81,288 @@
 
   const NEWS_RSS_URLS = [
     'https://feeds.bbci.co.uk/news/rss.xml',
-    'https://rss.cnn.com/rss/edition.rss',
     'https://feeds.npr.org/1001/rss.xml',
     'https://www.aljazeera.com/xml/rss/all.xml',
     'https://www.reutersagency.com/feed/?best-topics=top-news',
     'https://www.nytimes.com/services/xml/rss/nyt/HomePage.xml',
     'https://www.theguardian.com/world/rss',
-    'https://www.washingtonpost.com/rss/world',
-    'https://www.cbc.ca/cmlink/rss-world',
     'https://www.france24.com/en/rss',
+    
     'https://feeds.feedburner.com/TechCrunch',
     'https://www.wired.com/feed/rss',
     'https://feeds.arstechnica.com/arstechnica/index',
     'https://www.theverge.com/rss/index.xml',
+    'https://www.engadget.com/rss.xml',
+    'https://www.gizmodo.com/rss',
+    'https://www.mashable.com/feed.xml',
+    'https://www.digitaltrends.com/feed/',
+    'https://www.slashgear.com/feed/',
+    'https://www.techradar.com/rss',
+    
     'https://feeds.nature.com/nature/rss/current',
     'https://www.science.org/rss/news_current.xml',
+    'https://www.sciencedaily.com/rss/top/technology.xml',
+    'https://www.newscientist.com/feed/?cmpid=RSS',
+    'https://www.sciencenews.org/feed',
+    'https://www.phys.org/rss-feed/',
+    'https://www.eurekalert.org/rss.xml',
+    
     'https://feeds.bloomberg.com/markets/news.rss',
     'https://www.ft.com/world?format=rss',
     'https://feeds.economist.com/United-States',
+    'https://www.cnbc.com/id/100003114/device/rss/rss.html',
+    'https://www.forbes.com/business/feed/',
+    'https://www.wsj.com/xml/rss/3_7085.xml',
+    'https://www.marketwatch.com/rss/topstories',
+    'https://www.fortune.com/feed/',
+    
     'https://www.euronews.com/rss?level=theme&name=news',
     'https://www.dw.com/rss/rss-en-all',
-    'https://feeds.reuters.com/Reuters/worldNews',
+    'https://www.bbc.com/news/world/europe/rss.xml',
+    'https://www.thelocal.com/rss.xml',
+    'https://www.euractiv.com/feed/',
+    
     'https://www.abc.net.au/news/feed/45910/rss.xml',
-    'https://www.smh.com.au/rss/feed.xml'
+    'https://www.smh.com.au/rss/feed.xml',
+    'https://www.scmp.com/rss/91/feed',
+    'https://www.japantimes.co.jp/feed/',
+    'https://www.straitstimes.com/news/asia/rss.xml',
+    'https://www.channelnewsasia.com/rssfeeds/8395986',
+    
+    'https://www.bbc.com/news/world/us_and_canada/rss.xml',
+    'https://www.bbc.com/news/world/africa/rss.xml',
+    'https://www.bbc.com/news/world/middle_east/rss.xml',
+    'https://www.bbc.com/news/world/asia/rss.xml',
+    'https://www.bbc.com/news/world/latin_america/rss.xml',
+    
+    'https://www.space.com/feeds/all',
+    'https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=20',
+    
+    'https://www.venturebeat.com/feed/',
+    'https://www.tomshardware.com/rss.xml',
+    'https://www.anandtech.com/rss/',
+    'https://www.extremetech.com/feed',
+    'https://www.pcworld.com/rss.xml',
+    'https://www.macworld.com/rss.xml',
+    'https://www.zdnet.com/news/rss.xml',
+    'https://www.cnet.com/rss/all/',
+    'https://www.thenextweb.com/feed/',
+    'https://www.readwrite.com/feed/',
+    'https://www.techspot.com/rss.xml',
+    'https://www.neowin.net/rss/',
+    'https://www.ghacks.net/feed/',
+    'https://www.makeuseof.com/feed/',
+    'https://www.howtogeek.com/feed/',
+    'https://www.lifehacker.com/rss',
+    'https://www.gizmodo.com.au/feed/',
+    'https://www.kotaku.com/rss',
+    'https://www.polygon.com/rss/index.xml',
+    'https://www.ign.com/feed.xml',
+    
+    'https://www.sciencenewsforstudents.org/feed',
+    'https://www.scientificamerican.com/rss/',
+    'https://www.popularmechanics.com/rss.xml',
+    'https://www.discovermagazine.com/rss',
+    'https://www.smithsonianmag.com/rss/',
+    'https://www.nationalgeographic.com/rss/',
+    'https://www.sciencedaily.com/rss/top/environment.xml',
+    'https://www.sciencedaily.com/rss/top/health.xml',
+    'https://www.sciencedaily.com/rss/top/mind_brain.xml',
+    'https://www.sciencedaily.com/rss/top/plants_animals.xml',
+    'https://www.sciencedaily.com/rss/top/matter_energy.xml',
+    'https://www.sciencedaily.com/rss/top/space_time.xml',
+    'https://www.sciencedaily.com/rss/top/computers_math.xml',
+    'https://www.sciencedaily.com/rss/top/fossils_ruins.xml',
+    'https://www.sciencedaily.com/rss/top/science_society.xml',
+    'https://www.sciencedaily.com/rss/top/strange_offbeat.xml',
+    
+    'https://www.businessinsider.com/rss',
+    'https://www.fastcompany.com/feed',
+    'https://www.inc.com/rss/',
+    'https://www.entrepreneur.com/rss.xml',
+    'https://www.harvardbusiness.org/feed',
+    'https://www.mckinsey.com/insights/rss',
+    'https://www.bcg.com/rss.xml',
+    'https://www.bain.com/insights/rss/',
+    'https://www.deloitte.com/rss.xml',
+    'https://www.pwc.com/rss.xml',
+    'https://www.ey.com/en_gl/rss',
+    'https://www.kpmg.com/rss.xml',
+    'https://www.accenture.com/rss.xml',
+    'https://www.ibm.com/thought-leadership/rss.xml',
+    'https://www.microsoft.com/en-us/rss.xml',
+    'https://www.apple.com/rss/',
+    'https://www.google.com/rss/',
+    'https://www.amazon.com/rss/',
+    'https://www.meta.com/rss/',
+    'https://www.netflix.com/rss.xml',
+    
+    'https://www.lemonde.fr/rss/une.xml',
+    'https://www.lefigaro.fr/rss/figaro_actualites.xml',
+    'https://www.liberation.fr/rss/',
+    'https://www.lepoint.fr/rss.xml',
+    'https://www.20minutes.fr/rss/une.xml',
+    'https://www.leparisien.fr/rss.xml',
+    'https://www.ouest-france.fr/rss/',
+    'https://www.sudouest.fr/rss/',
+    'https://www.la-croix.com/rss/',
+    'https://www.la-croix.com/rss/actualite.xml',
+    'https://www.lemonde.fr/rss/actualite.xml',
+    'https://www.lemonde.fr/rss/international.xml',
+    'https://www.lemonde.fr/rss/economie.xml',
+    'https://www.lemonde.fr/rss/societe.xml',
+    'https://www.lemonde.fr/rss/culture.xml',
+    'https://www.lemonde.fr/rss/sciences.xml',
+    'https://www.lemonde.fr/rss/sport.xml',
+    'https://www.lemonde.fr/rss/planete.xml',
+    'https://www.lemonde.fr/rss/politique.xml',
+    
+    'https://www.eltiempo.com/rss/',
+    'https://www.clarin.com/rss/',
+    'https://www.lanacion.com.ar/rss/',
+    'https://www.mercadolibre.com/rss/',
+    'https://www.oglobo.globo.com/rss/',
+    'https://www.folha.uol.com.br/rss/',
+    'https://www.estadao.com.br/rss/',
+    'https://www.correiobraziliense.com.br/rss/',
+    'https://www.zerohora.com/rss/',
+    'https://www.gazetadopovo.com.br/rss/',
+    
+    'https://www.techcrunch.com/feed/',
+    'https://www.wired.com/feed/rss',
+    'https://www.ars-technica.com/feed/',
+    'https://www.theverge.com/rss/index.xml',
+    'https://www.engadget.com/rss.xml',
+    'https://www.gizmodo.com/rss',
+    'https://www.mashable.com/feed.xml',
+    'https://www.digitaltrends.com/feed/',
+    'https://www.slashgear.com/feed/',
+    'https://www.techradar.com/rss',
+    'https://www.venturebeat.com/feed/',
+    'https://www.tomshardware.com/rss.xml',
+    'https://www.anandtech.com/rss/',
+    'https://www.extremetech.com/feed',
+    'https://www.pcworld.com/rss.xml',
+    'https://www.macworld.com/rss.xml',
+    'https://www.zdnet.com/news/rss.xml',
+    'https://www.cnet.com/rss/all/',
+    'https://www.thenextweb.com/feed/',
+    'https://www.readwrite.com/feed/',
+    'https://www.techspot.com/rss.xml',
+    'https://www.neowin.net/rss/',
+    'https://www.ghacks.net/feed/',
+    'https://www.makeuseof.com/feed/',
+    'https://www.howtogeek.com/feed/',
+    'https://www.lifehacker.com/rss',
+    'https://www.gizmodo.com.au/feed/',
+    'https://www.kotaku.com/rss',
+    'https://www.polygon.com/rss/index.xml',
+    'https://www.ign.com/feed.xml',
+    
+    'https://www.vox.com/rss/index.xml',
+    'https://www.theatlantic.com/feed/',
+    'https://www.newyorker.com/feed/everything',
+    'https://www.huffpost.com/section/front-page/feed',
+    'https://www.slate.com/feed/',
+    'https://www.motherjones.com/feed/',
+    'https://www.thenation.com/feed/',
+    'https://www.propublica.org/feed/',
+    'https://www.theintercept.com/feed/',
+    'https://www.jacobinmag.com/feed/',
+    'https://www.democracynow.org/podcast.xml',
+    'https://www.truthout.org/feed/',
+    'https://www.commondreams.org/rss.xml',
+    'https://www.alternet.org/feed/',
+    'https://www.counterpunch.org/feed/',
+    'https://www.zcommunications.org/znet/feed',
+    'https://www.rt.com/rss/',
+    'https://www.sputniknews.com/rss/',
+    'https://www.telesurtv.net/rss/',
+    'https://www.presstv.com/rss/',
+    'https://www.xinhuanet.com/english/rss/world.xml',
+    'https://www.chinadaily.com.cn/rss/china_rss.xml',
+    'https://www.globaltimes.cn/rss/',
+    'https://www.peoplesdaily.com.cn/rss/',
+    'https://www.cgtn.com/rss/',
+    'https://www.todayonline.com/rss.xml',
+    'https://www.yahoo.com/news/rss/',
+    'https://www.msn.com/rss/',
+    'https://www.aol.com/rss/',
+    'https://www.huffingtonpost.com/rss/',
+    'https://www.buzzfeed.com/rss.xml',
+    'https://www.vice.com/rss',
+    'https://www.axios.com/feed',
+    'https://www.politico.com/rss/',
+    'https://www.thehill.com/rss/',
+    'https://www.rollcall.com/rss/',
+    'https://www.cqpolitics.com/rss/',
+    'https://www.realclearpolitics.com/rss/',
+    'https://www.fivethirtyeight.com/rss/',
+    'https://www.nate-silver.com/rss/',
+    'https://www.cookpolitical.com/rss/',
+    'https://www.sabatos.com/rss/',
+    'https://www.270towin.com/rss/',
+    'https://www.electoral-vote.com/rss/',
+    'https://www.pollingreport.com/rss/',
+    'https://www.realclearpolling.com/rss/',
+    'https://www.pollster.com/rss/',
+    'https://www.rasmussenreports.com/rss/',
+    'https://www.gallup.com/rss/',
+    'https://www.pewresearch.org/rss/',
+    'https://www.quinnipiac.edu/rss/',
+    'https://www.marist.edu/rss/',
+    'https://www.siena.edu/rss/',
+    'https://www.emerson.edu/rss/',
+    'https://www.monmouth.edu/rss/',
+    'https://www.fairleigh.edu/rss/',
+    'https://www.kean.edu/rss/',
+    'https://www.rowan.edu/rss/',
+    'https://www.rutgers.edu/rss/',
+    'https://www.princeton.edu/rss/',
+    'https://www.columbia.edu/rss/',
+    'https://www.nyu.edu/rss/',
+    'https://www.cuny.edu/rss/',
+    'https://www.suny.edu/rss/',
+    'https://www.umass.edu/rss/',
+    'https://www.bu.edu/rss/',
+    'https://www.tufts.edu/rss/',
+    'https://www.brandeis.edu/rss/',
+    'https://www.northeastern.edu/rss/',
+    'https://www.bc.edu/rss/',
+    'https://www.holycross.edu/rss/',
+    'https://www.wellesley.edu/rss/',
+    'https://www.mit.edu/rss/',
+    'https://www.harvard.edu/rss/',
+    'https://www.yale.edu/rss/',
+    'https://www.brown.edu/rss/',
+    'https://www.dartmouth.edu/rss/',
+    'https://www.upenn.edu/rss/',
+    'https://www.cornell.edu/rss/',
+    'https://www.columbia.edu/rss/',
+    'https://www.nyu.edu/rss/',
+    'https://www.stanford.edu/rss/',
+    'https://www.berkeley.edu/rss/',
+    'https://www.ucla.edu/rss/',
+    'https://www.usc.edu/rss/',
+    'https://www.caltech.edu/rss/',
+    'https://www.ucsd.edu/rss/',
+    'https://www.uci.edu/rss/',
+    'https://www.ucsb.edu/rss/',
+    'https://www.ucdavis.edu/rss/',
+    'https://www.ucsc.edu/rss/',
+    'https://www.ucr.edu/rss/',
+    'https://www.ucmerced.edu/rss/',
+    'https://www.ucsf.edu/rss/',
+    'https://www.ucop.edu/rss/',
+    'https://www.ucanr.edu/rss/',
+    'https://www.ucpress.edu/rss/',
+    'https://www.ucsc.edu/rss/',
+    'https://www.ucr.edu/rss/',
+    'https://www.ucmerced.edu/rss/',
+    'https://www.ucsf.edu/rss/',
+    'https://www.ucop.edu/rss/',
+    'https://www.ucanr.edu/rss/',
+    'https://www.ucpress.edu/rss/'
   ];
 
   async function performSearch(query: string) {
@@ -124,19 +384,19 @@
     try {
       if (searchMode === 'dictionary') {
         const results = await searchWiktionary(query);
-        if (results.length > 0) {
+        if (results && results.length > 0) {
           dictionaryResults = results;
           searchResults = [];
           imageResults = [];
-              } else {
-        dictionaryResults = [];
-        searchResults = [];
-        imageResults = [];
-        searchError = 'No dictionary results found. Try a different word or check spelling.';
-      }
+        } else {
+          dictionaryResults = [];
+          searchResults = [];
+          imageResults = [];
+          searchError = 'No dictionary results found. Try a different word or check spelling.';
+        }
       } else if (searchMode === 'wiki') {
         const results = await searchWikipedia(query);
-        if (results.length > 0) {
+        if (results && results.length > 0) {
           if (results[0].description && results[0].description.toLowerCase().includes('disambiguation page')) {
             searchResults = [];
             imageResults = [];
@@ -144,19 +404,32 @@
             disambiguationError = 'This is a disambiguation page. Please select a specific topic.';
             const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
             const searchResponse = await fetch(searchUrl);
-            const searchData = await searchResponse.json();
+            
+            if (!searchResponse.ok) {
+              console.error('Disambiguation search failed:', searchResponse.status, searchResponse.statusText);
+              return;
+            }
+            
+            let searchData;
+            try {
+              searchData = await searchResponse.json();
+            } catch (jsonError) {
+              console.error('Failed to parse disambiguation search JSON:', jsonError);
+              return;
+            }
+            
             if (searchData.query?.search?.length) {
-              disambiguationOptions = searchData.query.search.map((item: any) => ({
-                title: item.title,
-                description: item.snippet?.replace(/<[^>]+>/g, '') || '',
-                url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title)}`
-              })).filter((opt: any) => !opt.title.toLowerCase().includes('disambiguation'));
+                    disambiguationOptions = searchData.query.search.map((item: { title: string; snippet?: string }) => ({
+        title: item.title,
+        description: item.snippet?.replace(/<[^>]+>/g, '') || '',
+        url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title)}`
+      })).filter((opt: { title: string }) => !opt.title.toLowerCase().includes('disambiguation'));
             }
             if (!disambiguationOptions.length && results.length > 0) {
-              disambiguationOptions = results.slice(0, 5).map((r: any) => ({
+              disambiguationOptions = results.slice(0, 5).map((r: SearchResult) => ({
                 title: r.title,
                 description: r.description || '',
-                url: r.url
+                url: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title)}`
               }));
             }
           } else {
@@ -170,19 +443,19 @@
           dictionaryResults = [];
           searchError = 'No results found.';
         }
-      } else {
-        const results = await searchWikimediaImages(query);
-        if (results.length > 0) {
-          imageResults = results;
-          searchResults = [];
-          dictionaryResults = [];
-        } else {
-          imageResults = [];
-          searchResults = [];
-          dictionaryResults = [];
-          searchError = 'No images found.';
+              } else {
+          const results = await searchWikimediaImages(query);
+          if (results && results.length > 0) {
+            imageResults = results;
+            searchResults = [];
+            dictionaryResults = [];
+          } else {
+            imageResults = [];
+            searchResults = [];
+            dictionaryResults = [];
+            searchError = 'No images found.';
+          }
         }
-      }
     } catch (error) {
       console.error('Search error:', error);
       searchResults = [];
@@ -199,23 +472,47 @@
     try {
       const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
       const searchResponse = await fetch(searchUrl);
-      const searchData = await searchResponse.json();
+      
+      if (!searchResponse.ok) {
+        console.error('Wikipedia articles search failed:', searchResponse.status, searchResponse.statusText);
+        return [];
+      }
+      
+      let searchData;
+      try {
+        searchData = await searchResponse.json();
+      } catch (jsonError) {
+        console.error('Failed to parse Wikipedia search JSON:', jsonError);
+        return [];
+      }
       
       if (!searchData.query?.search?.length) {
         return [];
       }
       
       const results = searchData.query.search;
-      const pageIds = results.map((r: any) => r.pageid).join('|');
+      const pageIds = results.map((r: { pageid: number }) => r.pageid).join('|');
       
       const summaryUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageimages&exintro=true&explaintext=true&piprop=thumbnail&pithumbsize=200&pageids=${pageIds}&origin=*`;
       const summaryResponse = await fetch(summaryUrl);
-      const summaryData = await summaryResponse.json();
       
-      return results.map((result: any) => {
+      if (!summaryResponse.ok) {
+        console.error('Wikipedia articles summary failed:', summaryResponse.status, summaryResponse.statusText);
+        return [];
+      }
+      
+      let summaryData;
+      try {
+        summaryData = await summaryResponse.json();
+      } catch (jsonError) {
+        console.error('Failed to parse Wikipedia summary JSON:', jsonError);
+        return [];
+      }
+      
+      return results.map((result: { pageid: number; title: string; snippet?: string }) => {
         const pageData = summaryData.query?.pages?.[result.pageid];
         const extract = pageData?.extract || '';
-        const thumbnail = pageData?.thumbnail?.source || null;
+        const thumbnail = pageData?.thumbnail?.source || undefined;
         
         return {
           id: result.pageid,
@@ -259,7 +556,7 @@
       let messages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
         {
           role: 'system',
-          content: 'You are a helpful AI assistant that provides comprehensive, detailed answers to questions. Use the provided articles and web search results to give accurate and up-to-date information. Be thorough but concise. Format your response using markdown with proper headings, lists, bold text, and code blocks where appropriate. Cite sources when referencing specific information.'
+          content: '/no_think You are a helpful AI assistant that provides comprehensive, detailed answers to questions. Use the provided articles and web search results to give accurate and up-to-date information. Be thorough but concise. Format your response using markdown with proper headings, lists, bold text, and code blocks where appropriate. Cite sources when referencing specific information.'
         }
       ];
 
@@ -271,9 +568,9 @@
       let additionalContext = '';
       if (wikiResults.length > 0) {
         additionalContext += '\n\n**Articles Found:**\n';
-        wikiResults.forEach((result: any, index: number) => {
-          additionalContext += `${index + 1}. **${result.title}**: ${result.description}\n`;
-        });
+              wikiResults.forEach((result: { title: string; description: string }, index: number) => {
+        additionalContext += `${index + 1}. **${result.title}**: ${result.description}\n`;
+      });
       }
       const userMessage = `Question: ${query}${additionalContext}`;
       messages.push({
@@ -298,22 +595,25 @@
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const data = await response.json();
-      console.log('Raw AI response:', data);
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse AI response JSON:', jsonError);
+        throw new Error('Invalid JSON response from AI service');
+      }
       
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
         throw new Error('Invalid response format from AI service');
       }
       
       const aiResponse = data.choices[0].message.content;
-      console.log('Extracted AI response:', aiResponse);
       
       if (!aiResponse || typeof aiResponse !== 'string') {
         throw new Error('No valid content in AI response');
       }
       
       conversationHistory = [...conversationHistory, { role: 'user', content: query }, { role: 'assistant', content: aiResponse }];
-      console.log('Updated conversation history:', conversationHistory);
       
       if (!isFollowUp) {
         generateSuggestedFollowUps(query, aiResponse);
@@ -322,6 +622,7 @@
     } catch (error) {
       console.error('Explore error:', error);
       exploreError = error instanceof Error ? error.message : 'Failed to get response.';
+      conversationHistory = [...conversationHistory, { role: 'user', content: query }, { role: 'assistant', content: `Sorry, I encountered an error: ${exploreError}. Please try again.` }];
     } finally {
       isExploring = false;
     }
@@ -374,6 +675,17 @@
     selectedImage = null;
   }
 
+  function selectDictionaryResult(result: DictionaryResult) {
+    selectedDictionaryResult = result;
+    showDictionaryModal = true;
+    showResults = false;
+  }
+
+  function closeDictionaryModal() {
+    showDictionaryModal = false;
+    selectedDictionaryResult = null;
+  }
+
   function selectResult(result: SearchResult) {
     searchQuery = result.title;
     showResults = false;
@@ -381,15 +693,17 @@
   }
 
   function handleClickOutside(event: MouseEvent) {
-    const target = event.target as HTMLElement | null;
-    if (!target?.closest('.search-container')) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.search-container')) {
       showResults = false;
     }
   }
 
   function handleImageError(event: Event) {
     const img = event.target as HTMLImageElement;
-    img.style.display = 'none';
+    if (img) {
+      img.style.display = 'none';
+    }
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -437,7 +751,18 @@
     weatherSummary = 'Loading...';
     try {
       const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.77&longitude=-122.42&current_weather=true');
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonError) {
+        console.error('Failed to parse weather JSON:', jsonError);
+        weatherSummary = 'Failed to fetch.';
+        return;
+      }
+      
       if (data.current_weather) {
         const tempC = data.current_weather.temperature;
         const tempF = (tempC * 9/5 + 32).toFixed(1);
@@ -451,7 +776,8 @@
       } else {
         weatherSummary = 'No data.';
       }
-    } catch {
+    } catch (error) {
+      console.error('Weather fetch error:', error);
       weatherSummary = 'Failed to fetch.';
     }
   }
@@ -466,8 +792,8 @@
     newsSummary = 'Loading...';
     newsLoading = true;
     newsFeedsLoaded = 0;
-    const allItems: any[] = [];
-    let articlesSet = new Map();
+    const allItems: Array<{ title: string; description?: string; link: string; pubDate: string; thumbnail?: string }> = [];
+    let articlesSet = new Map<string, { title: string; description?: string; link: string; pubDate: string; thumbnail?: string }>();
     newsModalArticles = [];
     newsFeedsTotal = NEWS_RSS_URLS.length;
     
@@ -479,7 +805,17 @@
       const fetchPromise = Promise.all(NEWS_RSS_URLS.map(async (url, index) => {
         try {
           const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
-          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          
+          let data;
+          try {
+            data = await res.json();
+          } catch (jsonError) {
+            console.error('Failed to parse news JSON from:', url, jsonError);
+            return;
+          }
           if (data.items && data.items.length > 0) {
             for (const item of data.items) {
               if (!articlesSet.has(item.title)) {
@@ -499,12 +835,12 @@
       
       const uniqueItems = Array.from(articlesSet.values());
       uniqueItems.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-      newsModalArticles = uniqueItems.slice(0, 20).map((item: any) => ({
+      newsModalArticles = uniqueItems.slice(0, 100).map((item) => ({
         title: item.title,
         description: item.description || 'No description available',
         url: item.link,
         publishedAt: new Date(item.pubDate).toLocaleDateString(),
-        thumbnail: item.thumbnail || null
+        thumbnail: item.thumbnail || undefined
       }));
       
       if (newsModalArticles.length > 0) {
@@ -519,12 +855,12 @@
       if (error instanceof Error && error.message === 'News loading timeout') {
         const loadedArticles = Array.from(articlesSet.values());
         loadedArticles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-        newsModalArticles = loadedArticles.slice(0, 20).map((item: any) => ({
+        newsModalArticles = loadedArticles.slice(0, 100).map((item) => ({
           title: item.title,
           description: item.description || 'No description available',
           url: item.link,
           publishedAt: new Date(item.pubDate).toLocaleDateString(),
-          thumbnail: item.thumbnail || null
+          thumbnail: item.thumbnail || undefined
         }));
         
         if (newsModalArticles.length > 0) {
@@ -554,6 +890,8 @@
     return () => {
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('keydown', handleKeydown);
+      clearTimeout(searchTimeout);
+      clearTimeout(chatScrollTimeout);
     };
   });
 
@@ -578,10 +916,11 @@
     };
   }
 
-  let lastWeatherCode = 0;
-
   function windDirToDeg(dir: string): number {
-    const map: Record<string, number> = { N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5 };
+    const map: Record<string, number> = { 
+      N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, 
+      S: 180, SSW: 202.5, SW: 225, WSW: 247.5, W: 270, WNW: 292.5, NW: 315, NNW: 337.5 
+    };
     return map[dir] || 0;
   }
 
@@ -589,7 +928,7 @@
     if (followUpInput.trim()) {
       performExplore(followUpInput, true);
       followUpInput = '';
-      setTimeout(() => {
+      chatScrollTimeout = setTimeout(() => {
         const el = document.getElementById('chat-messages');
         if (el) el.scrollTop = el.scrollHeight;
       }, 50);
@@ -604,19 +943,24 @@
     try {
       const urlObj = new URL(url);
       return urlObj.hostname.replace('www.', '');
-    } catch {
+    } catch (error) {
+      console.warn('Failed to parse URL:', url, error);
       return 'Unknown';
     }
   }
 
-  function shareArticle(article: { title: string, url: string }) {
-    if (navigator.share) {
-      navigator.share({
-        title: article.title,
-        url: article.url
-      });
-    } else {
-      navigator.clipboard.writeText(`${article.title}\n${article.url}`);
+  async function shareArticle(article: { title: string, url: string }) {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: article.title,
+          url: article.url
+        });
+      } else {
+        await navigator.clipboard.writeText(`${article.title}\n${article.url}`);
+      }
+    } catch (error) {
+      console.error('Failed to share article:', error);
     }
   }
 
@@ -626,7 +970,7 @@
       const messages = [
         {
           role: 'system',
-          content: 'Generate 3-4 natural follow-up questions based on the user\'s question and the AI response. Make them specific, relevant, and engaging. Return only the questions, one per line, without numbering or formatting.'
+          content: '/no_think Generate 3-4 natural follow-up questions based on the user\'s question and the AI response. Make them specific, relevant, and engaging. Return only the questions, one per line, without numbering or formatting.'
         },
         {
           role: 'user',
@@ -648,9 +992,18 @@
       });
       
       if (apiResponse.ok) {
-        const data = await apiResponse.json();
-        const followUpsText = data.choices[0].message.content;
-        suggestedFollowUps = followUpsText.split('\n').filter((q: string) => q.trim()).slice(0, 4);
+        let data;
+        try {
+          data = await apiResponse.json();
+        } catch (jsonError) {
+          console.error('Failed to parse follow-ups JSON:', jsonError);
+          return;
+        }
+        
+        if (data.choices?.[0]?.message?.content) {
+          const followUpsText = data.choices[0].message.content;
+          suggestedFollowUps = followUpsText.split('\n').filter((q: string) => q.trim()).slice(0, 4);
+        }
       }
     } catch (error) {
       console.error('Failed to generate follow-ups:', error);
@@ -659,69 +1012,6 @@
     }
   }
 
-  async function rewritePrompt(prompt: string) {
-    try {
-      const messages = [
-        {
-          role: 'system',
-          content: 'Rewrite the user\'s question to be more specific, clear, and likely to get a better response. Keep it concise but comprehensive. Return only the rewritten question.'
-        },
-        {
-          role: 'user',
-          content: `Rewrite this question: ${prompt}`
-        }
-      ];
-      
-      const response = await fetch('https://ai.hackclub.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-4-scout',
-          messages,
-          max_tokens: 200,
-          temperature: 0.7
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        return data.choices[0].message.content;
-      }
-    } catch (error) {
-      console.error('Failed to rewrite prompt:', error);
-    }
-    return prompt;
-  }
-
-  function convertMarkdownToHtml(markdown: string): string {
-    return markdown
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      .replace(/^- (.*$)/gim, '<li>$1</li>')
-      .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
-      .replace(/\[\((\d+)\)\]/g, '<a href="#" class="wiki-ref" data-ref="$1">[$1]</a>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/^(.+)$/gm, '<p>$1</p>')
-      .replace(/<p><\/p>/g, '')
-      .replace(/<p><h/g, '<h')
-      .replace(/<\/h><\/p>/g, '</h>')
-      .replace(/<p><li>/g, '<ul><li>')
-      .replace(/<\/li><\/p>/g, '</li></ul>')
-      .replace(/<\/ul><ul>/g, '');
-  }
-
-  function getWikiResult(search) {
-    const match = searchResults.find(r => r.title === search);
-    return match || { title: search, description: '', url: `https://en.wikipedia.org/wiki/${encodeURIComponent(search)}` };
-  }
-
-  const emptySvg = `<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="20" fill="#f1f5f9"/><rect x="18" y="28" width="44" height="24" rx="6" fill="#e0e7ef"/><rect x="24" y="36" width="32" height="8" rx="4" fill="#cbd5e1"/></svg>`;
 
 </script>
 
@@ -760,8 +1050,8 @@
                   title="Dictionary"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                   </svg>
                 </button>
                 <button
@@ -832,7 +1122,11 @@
             {:else if searchMode === 'dictionary' && dictionaryResults.length > 0}
               <div class="results-list">
                 {#each dictionaryResults as result, index}
-                  <div class="result-item dictionary-result {selectedResultIndex === index ? 'selected' : ''}">
+                  <button
+                    type="button"
+                    class="result-item dictionary-result {selectedResultIndex === index ? 'selected' : ''}"
+                    on:click={() => selectDictionaryResult(result)}
+                  >
                     <div class="result-content">
                       <div class="result-title">{result.word}</div>
                       <div class="dictionary-pos">{result.partOfSpeech}</div>
@@ -841,29 +1135,16 @@
                       {/if}
                       {#if result.definitions.length > 0}
                         <div class="dictionary-definitions">
-                          {#each result.definitions as definition, defIndex}
-                            <div class="definition-item">
-                              <span class="definition-number">{defIndex + 1}.</span>
-                              <span class="definition-text">{definition}</span>
-                            </div>
-                          {/each}
-                        </div>
-                      {/if}
-                      {#if result.etymology && result.etymology !== 'No etymology available'}
-                        <div class="dictionary-etymology">
-                          <strong>Etymology:</strong> {result.etymology}
-                        </div>
-                      {/if}
-                      {#if result.examples.length > 0}
-                        <div class="dictionary-examples">
-                          <strong>Examples:</strong>
-                          {#each result.examples as example}
-                            <div class="example-item">"{example}"</div>
-                          {/each}
+                          <div class="definition-preview">
+                            {result.definitions[0]}
+                            {#if result.definitions.length > 1}
+                              <span class="more-definitions">+{result.definitions.length - 1} more</span>
+                            {/if}
+                          </div>
                         </div>
                       {/if}
                     </div>
-                  </div>
+                  </button>
                 {/each}
               </div>
             {:else if searchMode === 'wiki' && searchResults.length > 0}
@@ -1002,6 +1283,51 @@
   </div>
 {/if}
 
+{#if showDictionaryModal && selectedDictionaryResult}
+  <div class="modal-overlay" on:click={closeDictionaryModal}>
+    <div class="modal-content dictionary-modal">
+      <div class="dictionary-modal-header">
+        <div class="dictionary-word">{selectedDictionaryResult.word}</div>
+        <div class="dictionary-pos-modal">{selectedDictionaryResult.partOfSpeech}</div>
+        {#if selectedDictionaryResult.pronunciation}
+          <div class="dictionary-pronunciation-modal">/{selectedDictionaryResult.pronunciation}/</div>
+        {/if}
+      </div>
+      
+      <div class="dictionary-modal-body">
+        {#if selectedDictionaryResult.definitions.length > 0}
+          <div class="dictionary-section">
+            <h3 class="dictionary-section-title">Definitions</h3>
+            {#each selectedDictionaryResult.definitions as definition, defIndex}
+              <div class="definition-item-modal">
+                <span class="definition-number-modal">{defIndex + 1}.</span>
+                <span class="definition-text-modal">{definition}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        
+        {#if selectedDictionaryResult.etymology && selectedDictionaryResult.etymology !== 'No etymology available'}
+          <div class="dictionary-section">
+            <h3 class="dictionary-section-title">Etymology</h3>
+            <div class="etymology-text">{selectedDictionaryResult.etymology}</div>
+          </div>
+        {/if}
+        
+        {#if selectedDictionaryResult.examples.length > 0}
+          <div class="dictionary-section">
+            <h3 class="dictionary-section-title">Examples</h3>
+            {#each selectedDictionaryResult.examples as example}
+              <div class="example-item-modal">"{example}"</div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    </div>
+    <button class="modal-close" on:click={closeDictionaryModal}>×</button>
+  </div>
+{/if}
+
 {#if showWeatherModal}
   {updateWeatherModalData()}
   <div class="modal-overlay" on:click={() => showWeatherModal = false}>
@@ -1088,9 +1414,10 @@
                     class="news-item-thumbnail" 
                     on:error={(e) => {
                       const target = e.target as HTMLImageElement;
-                      if (target && target.nextElementSibling) {
+                      const nextSibling = target?.nextElementSibling as HTMLElement;
+                      if (target && nextSibling) {
                         target.style.display = 'none';
-                        (target.nextElementSibling as HTMLElement).style.display = 'block';
+                        nextSibling.style.display = 'block';
                       }
                     }}
                   />
@@ -1112,7 +1439,7 @@
       </div>
       
       <div class="news-modal-content">
-        {#if selectedNewsArticle !== null && newsModalArticles[selectedNewsArticle]}
+        {#if selectedNewsArticle !== null && selectedNewsArticle >= 0 && selectedNewsArticle < newsModalArticles.length}
           {@const article = newsModalArticles[selectedNewsArticle]}
           <div class="news-article-reader">
             <div class="news-article-header">
@@ -1148,7 +1475,7 @@
                   </svg>
                   Read Full Article
                 </a>
-                <button class="news-share-btn" on:click={() => shareArticle(article)}>
+                <button class="news-share-btn" on:click={() => void shareArticle(article)}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
                   </svg>
@@ -1170,6 +1497,21 @@
 {/if}
 
 </div>
+
+<div class="easter-egg" on:click={() => showDorpheusModal = true}>
+  <div class="easter-egg-content">
+    <img src="https://cloud-i203j2e6a-hack-club-bot.vercel.app/1confused_dinosaur.png" alt="Easter Egg" class="easter-egg-img" />
+  </div>
+</div>
+
+{#if showDorpheusModal}
+  <div class="modal-overlay" on:click={() => showDorpheusModal = false}>
+    <div class="modal-content" on:click|stopPropagation>
+      <button class="modal-close" on:click={() => showDorpheusModal = false}>×</button>
+      <img src="https://cloud-i203j2e6a-hack-club-bot.vercel.app/1confused_dinosaur.png" alt="Dorpheus" class="modal-dorpheus-img" />
+    </div>
+  </div>
+{/if}
 
 <style>
 
@@ -1546,6 +1888,118 @@
     margin-top: 4px;
     padding-left: 12px;
     font-style: italic;
+  }
+
+  .definition-preview {
+    font-size: 0.875rem;
+    color: #374151;
+    line-height: 1.4;
+  }
+
+  .more-definitions {
+    color: #3b82f6;
+    font-weight: 500;
+    margin-left: 8px;
+  }
+
+  .dictionary-modal {
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dictionary-modal-header {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    padding: 32px 24px 24px 24px;
+    text-align: center;
+  }
+
+  .dictionary-word {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .dictionary-pos-modal {
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    opacity: 0.9;
+    margin-bottom: 4px;
+  }
+
+  .dictionary-pronunciation-modal {
+    font-size: 1.125rem;
+    font-style: italic;
+    opacity: 0.8;
+  }
+
+  .dictionary-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .dictionary-section {
+    margin-bottom: 24px;
+  }
+
+  .dictionary-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .dictionary-section-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 12px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .definition-item-modal {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+
+  .definition-number-modal {
+    font-weight: 700;
+    color: #3b82f6;
+    min-width: 24px;
+    font-size: 1rem;
+  }
+
+  .definition-text-modal {
+    color: #374151;
+    font-size: 1rem;
+  }
+
+  .etymology-text {
+    font-size: 1rem;
+    color: #374151;
+    line-height: 1.6;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+  }
+
+  .example-item-modal {
+    font-size: 1rem;
+    color: #374151;
+    font-style: italic;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border-left: 3px solid #e5e7eb;
   }
   
   .result-content {
@@ -3301,6 +3755,116 @@
     font-weight: 400;
     font-size: 0.97em;
     margin-left: 6px;
+  }
+
+  .easter-egg {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .easter-egg:hover {
+    background: transparent;
+    transform: scale(1.1);
+  }
+
+  .easter-egg:hover .easter-egg-content {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  .easter-egg-content {
+    position: absolute;
+    bottom: 50px;
+    right: 0;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    width: 120px;
+    text-align: center;
+  }
+
+  .easter-egg-img {
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .easter-egg-text {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #64748b;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s ease;
+  }
+
+  .modal-close:hover {
+    background: #f1f5f9;
+    color: #374151;
+  }
+
+  .modal-dorpheus-img {
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 8px;
   }
 
 </style>

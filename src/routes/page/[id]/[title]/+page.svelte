@@ -7,14 +7,12 @@
   let articleData: any = null;
   let isLoading = true;
   let error = '';
-  let fontSize = 'medium';
   let headings: Array<{id: string, text: string, level: number}> = [];
   let upscaledImages = new Map<string, string>();
   let upscalingInProgress = new Set<string>();
   let aiSummary = '';
   let isGeneratingSummary = false;
   let showAISummary = true;
-  let duckDuckGoResults: any[] = [];
   let selectedImage: string | null = null;
   let showImageModal = false;
   let questionInput = '';
@@ -28,6 +26,7 @@
     'What are the key benefits?',
     'What are the risks involved?',
     'How does this compare to alternatives?'
+    
   ];
   let isGeneratingSuggestions = false;
   let stockData: any = null;
@@ -157,7 +156,7 @@
           messages: [
             {
               role: 'system',
-              content: `Generate ${questionCount} relevant questions that someone might ask about this topic. Each question should be 3-5 words maximum. Make them specific and interesting. Return only the questions, one per line, no numbering or extra text.`
+              content: `/no_think Generate ${questionCount} relevant questions that someone might ask about this topic. Each question should be 3-5 words maximum. Make them specific and interesting. Return only the questions, one per line, no numbering or extra text.`
             },
             {
               role: 'user',
@@ -207,7 +206,7 @@
           messages: [
             {
               role: 'system',
-              content: 'Analyze if this company/topic is publicly traded. Common companies like Apple (AAPL), Tesla (TSLA), Microsoft (MSFT), Amazon (AMZN), Google (GOOGL), Meta (META), Netflix (NFLX), Rocket Lab (RKLB), SpaceX (private), etc. If publicly traded, provide ONLY the stock symbol like AAPL or RKLB. If not public, respond with: NOT_PUBLIC. Only return the symbol or NOT_PUBLIC, nothing else.'
+              content: '/no_think Analyze if this company/topic is publicly traded. Common companies like Apple (AAPL), Tesla (TSLA), Microsoft (MSFT), Amazon (AMZN), Google (GOOGL), Meta (META), Netflix (NFLX), Rocket Lab (RKLB), SpaceX (private), etc. If publicly traded, provide ONLY the stock symbol like AAPL or RKLB. If not public, respond with: NOT_PUBLIC. Only return the symbol or NOT_PUBLIC, nothing else.'
             },
             {
               role: 'user',
@@ -320,7 +319,7 @@
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful assistant that answers questions about Wikipedia articles. Use the provided Wikipedia content and additional web information to give accurate, detailed answers. Be thorough but concise. If the information is not available in the provided sources, say so clearly.'
+              content: '/no_think You are a helpful assistant that answers questions about Wikipedia articles. Use the provided Wikipedia content and additional web information to give accurate, detailed answers. Be thorough but concise. If the information is not available in the provided sources, say so clearly.'
             },
             {
               role: 'user',
@@ -386,7 +385,7 @@
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful assistant that creates comprehensive, detailed summaries of Wikipedia articles enhanced with additional web information. Include ALL important information, facts, dates, statistics, people, events, and details from both the Wikipedia article and additional web sources. Make it thorough and complete, covering every significant aspect. Do not include any introductory text like "Here is a rewritten version" - just provide the comprehensive summary directly. Aim to include as much detail as possible while maintaining readability. Format the response with clear paragraphs separated by double line breaks. When mentioning sources or additional information, you can reference them naturally in the text.'
+              content: '/no_think You are a helpful assistant that creates comprehensive, detailed summaries of Wikipedia articles enhanced with additional web information. Include ALL important information, facts, dates, statistics, people, events, and details from both the Wikipedia article and additional web sources. Make it thorough and complete, covering every significant aspect. Do not include any introductory text like "Here is a rewritten version" - just provide the comprehensive summary directly. Aim to include as much detail as possible while maintaining readability. Format the response with clear paragraphs separated by double line breaks. When mentioning sources or additional information, you can reference them naturally in the text.'
             },
             {
               role: 'user',

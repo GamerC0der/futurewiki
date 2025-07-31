@@ -24,9 +24,16 @@ export interface DictionaryResult {
 }
 
 export async function searchWikipedia(query: string): Promise<SearchResult[]> {
-  const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
-  const searchResponse = await fetch(searchUrl);
-  const searchData = await searchResponse.json();
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=15&origin=*`;
+    const searchResponse = await fetch(searchUrl);
+    
+    if (!searchResponse.ok) {
+      console.error('Wikipedia search failed:', searchResponse.status, searchResponse.statusText);
+      return [];
+    }
+    
+    const searchData = await searchResponse.json();
   
   if (!searchData.query?.search?.length) {
     return [];
@@ -37,6 +44,12 @@ export async function searchWikipedia(query: string): Promise<SearchResult[]> {
   
   const summaryUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts|pageimages&exintro=true&explaintext=true&piprop=thumbnail&pithumbsize=200&pageids=${pageIds}&origin=*`;
   const summaryResponse = await fetch(summaryUrl);
+  
+  if (!summaryResponse.ok) {
+    console.error('Wikipedia summary failed:', summaryResponse.status, summaryResponse.statusText);
+    return [];
+  }
+  
   const summaryData = await summaryResponse.json();
   
   return results.map((result: any) => {
@@ -51,6 +64,10 @@ export async function searchWikipedia(query: string): Promise<SearchResult[]> {
       thumbnail
     };
   });
+  } catch (error) {
+    console.error('Wikipedia search error:', error);
+    return [];
+  }
 }
 
 function cleanDescription(text: string): string {
@@ -81,9 +98,16 @@ function cleanDescription(text: string): string {
 }
 
 export async function searchWikimediaImages(query: string): Promise<ImageSearchResult[]> {
-  const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=8&srnamespace=6&origin=*`;
-  const searchResponse = await fetch(searchUrl);
-  const searchData = await searchResponse.json();
+  try {
+    const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srsearch=${encodeURIComponent(query)}&srlimit=8&srnamespace=6&origin=*`;
+    const searchResponse = await fetch(searchUrl);
+    
+    if (!searchResponse.ok) {
+      console.error('Wikimedia images search failed:', searchResponse.status, searchResponse.statusText);
+      return [];
+    }
+    
+    const searchData = await searchResponse.json();
   
   if (!searchData.query?.search?.length) {
     return [];
@@ -94,6 +118,12 @@ export async function searchWikimediaImages(query: string): Promise<ImageSearchR
   
   const imageUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo|extracts&iiprop=url|size|mime|extmetadata&exintro=true&explaintext=true&pageids=${pageIds}&origin=*`;
   const imageResponse = await fetch(imageUrl);
+  
+  if (!imageResponse.ok) {
+    console.error('Wikimedia image details failed:', imageResponse.status, imageResponse.statusText);
+    return [];
+  }
+  
   const imageData = await imageResponse.json();
   
   return results.map((result: any) => {
@@ -110,6 +140,10 @@ export async function searchWikimediaImages(query: string): Promise<ImageSearchR
       license: imageInfo?.extmetadata?.License?.value || 'Unknown'
     };
   }).filter((result: ImageSearchResult) => result.imageUrl);
+  } catch (error) {
+    console.error('Wikimedia images search error:', error);
+    return [];
+  }
 } 
 
 export async function searchWiktionary(word: string): Promise<DictionaryResult[]> {
@@ -117,6 +151,7 @@ export async function searchWiktionary(word: string): Promise<DictionaryResult[]
     const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
     
     if (!response.ok) {
+      console.warn(`Dictionary API returned ${response.status} for word: ${word}`);
       return [];
     }
     
