@@ -33,6 +33,8 @@
   let isCheckingStock = false;
   let hoveredPoint: any = null;
   let tooltipPosition = { x: 0, y: 0 };
+  let retryCount = 0;
+  let maxRetries = 3;
   
   $: pageId = $page.params.id;
   $: pageTitle = $page.params.title ? decodeURIComponent($page.params.title) : '';
@@ -86,9 +88,20 @@
     hoveredPoint = null;
   }
   
-  async function searchDuckDuckGo(query: string) {
+  async function searchDuckDuckGo(query: string, attempt = 0) {
     try {
       const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
+      
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return searchDuckDuckGo(query, attempt + 1);
+      }
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       
       const results = [];
@@ -122,7 +135,7 @@
     }
   }
   
-  async function generateSuggestedQuestions(title: string, content: string) {
+  async function generateSuggestedQuestions(title: string, content: string, attempt = 0) {
     if (isGeneratingSuggestions) return;
     
     isGeneratingSuggestions = true;
@@ -130,8 +143,6 @@
     try {
       const contentLength = content.length;
       const wordCount = content.split(' ').length;
-      
-      console.log('Content length:', contentLength, 'Word count:', wordCount);
       
       let questionCount = 5;
       if (contentLength < 500 || wordCount < 100) {
@@ -143,8 +154,6 @@
       } else if (contentLength > 5000 || wordCount > 1000) {
         questionCount = 6;
       }
-      
-      console.log('Question count:', questionCount);
       
       const response = await fetch('https://ai.hackclub.com/chat/completions', {
         method: 'POST',
@@ -168,8 +177,15 @@
         })
       });
       
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        isGeneratingSuggestions = false;
+        return generateSuggestedQuestions(title, content, attempt + 1);
+      }
+      
       if (!response.ok) {
-        throw new Error('Failed to generate suggestions');
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
@@ -190,7 +206,7 @@
     }
   }
 
-  async function checkStockInfo(title: string, content: string) {
+  async function checkStockInfo(title: string, content: string, attempt = 0) {
     if (isCheckingStock) return;
     
     isCheckingStock = true;
@@ -218,21 +234,30 @@
         })
       });
       
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        isCheckingStock = false;
+        return checkStockInfo(title, content, attempt + 1);
+      }
+      
       if (!response.ok) {
-        throw new Error('Failed to check stock info');
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
       const result = data.choices[0].message.content.trim();
       
-      console.log('AI stock check result:', result);
-      
       if (result !== 'NOT_PUBLIC') {
         const symbol = result;
-        console.log('Checking stock data for symbol:', symbol);
         const stockResponse = await fetch(`https://corsproxy.io/?https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`);
         
-        console.log('Stock API response status:', stockResponse.status);
+        if (stockResponse.status === 429 && attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          isCheckingStock = false;
+          return checkStockInfo(title, content, attempt + 1);
+        }
         
         if (stockResponse.ok) {
           const yahooData = await stockResponse.json();
@@ -240,10 +265,6 @@
             const result = yahooData.chart.result[0];
             const quote = result.indicators.quote[0];
             const meta = result.meta;
-            
-            console.log('Yahoo data:', yahooData);
-            console.log('Meta:', meta);
-            console.log('Quote:', quote);
             
             const currentPrice = meta.regularMarketPrice || meta.chartPreviousClose;
             const previousClose = meta.previousClose || meta.chartPreviousClose;
@@ -278,8 +299,6 @@
               minPrice: minPrice,
               maxPrice: maxPrice
             };
-            
-            console.log('Processed stock data:', stockData);
           }
         }
       }
@@ -291,7 +310,7 @@
     }
   }
 
-  async function askQuestion(question: string, title: string, content: string) {
+  async function askQuestion(question: string, title: string, content: string, attempt = 0) {
     if (isAskingQuestion || !question.trim()) return;
     
     isAskingQuestion = true;
@@ -331,8 +350,15 @@
         })
       });
       
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        isAskingQuestion = false;
+        return askQuestion(question, title, content, attempt + 1);
+      }
+      
       if (!response.ok) {
-        throw new Error('Failed to get answer');
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
@@ -356,7 +382,7 @@
     }
   }
 
-  async function generateAISummary(title: string, content: string) {
+  async function generateAISummary(title: string, content: string, attempt = 0) {
     if (isGeneratingSummary) return;
     
     isGeneratingSummary = true;
@@ -365,7 +391,6 @@
     
     try {
       const ddgResults = await searchDuckDuckGo(title);
-      duckDuckGoResults = ddgResults;
       
       let additionalContext = '';
       if (ddgResults.length > 0) {
@@ -397,8 +422,15 @@
         })
       });
       
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        isGeneratingSummary = false;
+        return generateAISummary(title, content, attempt + 1);
+      }
+      
       if (!response.ok) {
-        throw new Error('Failed to generate summary');
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
@@ -476,7 +508,7 @@
     }
   }
   
-  async function loadArticle() {
+  async function loadArticle(attempt = 0) {
     try {
       if (!pageId || !pageTitle) {
         throw new Error('Invalid page parameters');
@@ -484,8 +516,14 @@
       
       const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`);
       
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return loadArticle(attempt + 1);
+      }
+      
       if (!response.ok) {
-        throw new Error('Article not found');
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
@@ -503,6 +541,17 @@
       };
       
       const contentResponse = await fetch(`https://en.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(pageTitle)}`);
+      
+      if (contentResponse.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return loadArticle(attempt + 1);
+      }
+      
+      if (!contentResponse.ok) {
+        throw new Error(`HTTP ${contentResponse.status}`);
+      }
+      
       const htmlContent = await contentResponse.text();
       
       const parser = new DOMParser();
