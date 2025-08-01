@@ -19,14 +19,13 @@
   let isAskingQuestion = false;
   let questionAnswer = '';
   let showQuestionAnswer = false;
-  let questionHistory: Array<{question: string, answer: string, timestamp: Date}> = [];
+  let questionHistory: Array<{question: string, answer: string, timestamp: Date | null}> = [];
   let suggestedQuestions = [
     'What are the main points?',
     'How does this work?',
     'What are the key benefits?',
     'What are the risks involved?',
     'How does this compare to alternatives?'
-    
   ];
   let isGeneratingSuggestions = false;
   let stockData: any = null;
@@ -35,11 +34,15 @@
   let tooltipPosition = { x: 0, y: 0 };
   let retryCount = 0;
   let maxRetries = 3;
+  let disambiguationOptions: Array<{title: string, description: string, url: string}> = [];
+  let isDisambiguationPage = false;
+  let isLoadingDisambiguation = false;
   
   $: pageId = $page.params.id;
   $: pageTitle = $page.params.title ? decodeURIComponent($page.params.title) : '';
   
   function openImageModal(imageUrl: string) {
+    if (!imageUrl) return;
     selectedImage = imageUrl;
     showImageModal = true;
   }
@@ -58,9 +61,11 @@
   }
 
   function handleChartMouseMove(event: MouseEvent) {
-    if (!stockData?.chartData) return;
+    if (!stockData?.chartData || !Array.isArray(stockData.chartData)) return;
     
     const svg = event.currentTarget as SVGElement;
+    if (!svg) return;
+    
     const rect = svg.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
@@ -71,11 +76,15 @@
     
     if (pointIndex >= 0 && pointIndex < stockData.chartData.length) {
       const point = stockData.chartData[pointIndex];
-      const pointY = 20 + 160 - ((point.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160;
-      
-      if (Math.abs(y - pointY) < 20) {
-        hoveredPoint = { ...point, index: pointIndex };
-        tooltipPosition = { x: event.clientX, y: event.clientY };
+      if (point && typeof point.price === 'number' && typeof stockData.minPrice === 'number' && typeof stockData.maxPrice === 'number') {
+        const pointY = 20 + 160 - ((point.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160;
+        
+        if (Math.abs(y - pointY) < 20) {
+          hoveredPoint = { ...point, index: pointIndex };
+          tooltipPosition = { x: event.clientX, y: event.clientY };
+        } else {
+          hoveredPoint = null;
+        }
       } else {
         hoveredPoint = null;
       }
@@ -88,7 +97,9 @@
     hoveredPoint = null;
   }
   
-  async function searchDuckDuckGo(query: string, attempt = 0) {
+  async function searchDuckDuckGo(query: string, attempt = 0): Promise<Array<{title: string, snippet: string, url: string, type: string}>> {
+    if (!query || query.trim().length === 0) return [];
+    
     try {
       const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
       
@@ -104,7 +115,7 @@
       
       const data = await response.json();
       
-      const results = [];
+      const results: Array<{title: string, snippet: string, url: string, type: string}> = [];
       
       if (data.Abstract && data.AbstractURL && !data.AbstractURL.includes('duckduckgo.com')) {
         results.push({
@@ -115,7 +126,7 @@
         });
       }
       
-      if (data.RelatedTopics) {
+      if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
         data.RelatedTopics.slice(0, 3).forEach((topic: any) => {
           if (topic.Text && topic.FirstURL && !topic.FirstURL.includes('duckduckgo.com')) {
             results.push({
@@ -136,7 +147,7 @@
   }
   
   async function generateSuggestedQuestions(title: string, content: string, attempt = 0) {
-    if (isGeneratingSuggestions) return;
+    if (isGeneratingSuggestions || !title || !content) return;
     
     isGeneratingSuggestions = true;
     
@@ -189,6 +200,10 @@
       }
       
       const data = await response.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        throw new Error('Invalid response format');
+      }
+      
       const generatedQuestions = data.choices[0].message.content
         .split('\n')
         .map((q: string) => q.trim())
@@ -207,7 +222,7 @@
   }
 
   async function checkStockInfo(title: string, content: string, attempt = 0) {
-    if (isCheckingStock) return;
+    if (isCheckingStock || !title || !content) return;
     
     isCheckingStock = true;
     
@@ -246,6 +261,10 @@
       }
       
       const data = await response.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        throw new Error('Invalid response format');
+      }
+      
       const result = data.choices[0].message.content.trim();
       
       if (result !== 'NOT_PUBLIC') {
@@ -263,42 +282,48 @@
           const yahooData = await stockResponse.json();
           if (yahooData.chart && yahooData.chart.result && yahooData.chart.result[0]) {
             const result = yahooData.chart.result[0];
-            const quote = result.indicators.quote[0];
+            const quote = result.indicators?.quote?.[0];
             const meta = result.meta;
             
-            const currentPrice = meta.regularMarketPrice || meta.chartPreviousClose;
-            const previousClose = meta.previousClose || meta.chartPreviousClose;
-            const change = currentPrice - previousClose;
-            const changePercent = previousClose ? (change / previousClose) * 100 : 0;
-            
-            const lastVolumeIndex = quote.volume ? quote.volume.length - 1 : 0;
-            const volume = quote.volume && quote.volume[lastVolumeIndex] ? quote.volume[lastVolumeIndex] : 0;
-            
-            const chartData = result.timestamp ? result.timestamp.map((time: number, index: number) => {
-              const price = quote.close && quote.close[index] || 
-                           quote.open && quote.open[index] || 
-                           quote.high && quote.high[index] || 
-                           quote.low && quote.low[index];
-              return {
-                time: time * 1000,
-                price: price
-              };
-            }).filter((point: any) => point.price && !isNaN(point.price)) : [];
-            
-            const prices = chartData.map((d: any) => d.price);
-            const minPrice = Math.min(...prices) * 0.995;
-            const maxPrice = Math.max(...prices) * 1.005;
-            
-            stockData = {
-              symbol: symbol,
-              price: currentPrice,
-              change: change,
-              changePercent: changePercent,
-              volume: volume,
-              chartData: chartData,
-              minPrice: minPrice,
-              maxPrice: maxPrice
-            };
+            if (quote && meta) {
+              const currentPrice = meta.regularMarketPrice || meta.chartPreviousClose;
+              const previousClose = meta.previousClose || meta.chartPreviousClose;
+              const change = currentPrice - previousClose;
+              const changePercent = previousClose ? (change / previousClose) * 100 : 0;
+              
+              const lastVolumeIndex = quote.volume ? quote.volume.length - 1 : 0;
+              const volume = quote.volume && quote.volume[lastVolumeIndex] ? quote.volume[lastVolumeIndex] : 0;
+              
+              const chartData = result.timestamp ? result.timestamp.map((time: number, index: number) => {
+                const price = quote.close && quote.close[index] || 
+                             quote.open && quote.open[index] || 
+                             quote.high && quote.high[index] || 
+                             quote.low && quote.low[index];
+                return {
+                  time: time * 1000,
+                  price: price
+                };
+              }).filter((point: any) => point.price && !isNaN(point.price)) : [];
+              
+              if (chartData.length > 0) {
+                const prices = chartData.map((d: any) => d.price).filter((p: number) => !isNaN(p));
+                if (prices.length > 0) {
+                  const minPrice = Math.min(...prices) * 0.995;
+                  const maxPrice = Math.max(...prices) * 1.005;
+                  
+                  stockData = {
+                    symbol: symbol,
+                    price: currentPrice,
+                    change: change,
+                    changePercent: changePercent,
+                    volume: volume,
+                    chartData: chartData,
+                    minPrice: minPrice,
+                    maxPrice: maxPrice
+                  };
+                }
+              }
+            }
           }
         }
       }
@@ -311,14 +336,16 @@
   }
 
   async function askQuestion(question: string, title: string, content: string, attempt = 0) {
-    if (isAskingQuestion || !question.trim()) return;
+    const cleanQuestion = question.replace(/<think>.*?<\/think>/gs, '').trim();
+    
+    if (isAskingQuestion || !cleanQuestion || !title || !content) return;
     
     isAskingQuestion = true;
     questionAnswer = '';
     showQuestionAnswer = true;
     
     try {
-      const ddgResults = await searchDuckDuckGo(question);
+      const ddgResults = await searchDuckDuckGo(cleanQuestion);
       
       let additionalContext = '';
       if (ddgResults.length > 0) {
@@ -342,7 +369,7 @@
             },
             {
               role: 'user',
-              content: `Based on this Wikipedia article about "${title}" and additional web information, please answer this question: "${question}"\n\nWikipedia Content:\n${content}${additionalContext}`
+              content: `Based on this Wikipedia article about "${title}" and additional web information, please answer this question: "${cleanQuestion}"\n\nWikipedia Content:\n${content}${additionalContext}`
             }
           ],
           max_tokens: 1500,
@@ -362,17 +389,22 @@
       }
       
       const data = await response.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        throw new Error('Invalid response format');
+      }
+      
       questionAnswer = data.choices[0].message.content;
       
-      questionHistory.unshift({
-        question: question,
-        answer: questionAnswer,
-        timestamp: new Date()
-      });
+      questionHistory = [
+        {
+          question: cleanQuestion,
+          answer: questionAnswer,
+          timestamp: new Date()
+        },
+        ...questionHistory.slice(0, 4)
+      ];
       
-      if (questionHistory.length > 5) {
-        questionHistory = questionHistory.slice(0, 5);
-      }
+      questionInput = '';
       
     } catch (e) {
       console.error('Failed to get answer:', e);
@@ -383,7 +415,7 @@
   }
 
   async function generateAISummary(title: string, content: string, attempt = 0) {
-    if (isGeneratingSummary) return;
+    if (isGeneratingSummary || !title || !content) return;
     
     isGeneratingSummary = true;
     aiSummary = '';
@@ -434,7 +466,11 @@
       }
       
       const data = await response.json();
-      const fullSummary = data.choices[0].message.content;
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        throw new Error('Invalid response format');
+      }
+      
+      const fullSummary = data.choices[0].message.content.replace(/<think>.*?<\/think>/gs, '').trim();
       
       const paragraphs = fullSummary.split('\n\n').filter(p => p.trim());
       
@@ -452,8 +488,10 @@
   }
   
   async function upscaleImage(imageUrl: string): Promise<string> {
+    if (!imageUrl) return '';
+    
     if (upscaledImages.has(imageUrl)) {
-      return upscaledImages.get(imageUrl)!;
+      return upscaledImages.get(imageUrl) || imageUrl;
     }
     
     if (upscalingInProgress.has(imageUrl)) {
@@ -485,7 +523,10 @@
       });
       
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Failed to get canvas context');
+      }
       
       const scale = 2;
       canvas.width = img.width * scale;
@@ -508,6 +549,165 @@
     }
   }
   
+  async function loadDisambiguationOptions(title: string, attempt = 0) {
+    if (!title) return;
+    
+    isLoadingDisambiguation = true;
+    try {
+      const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`);
+      
+      if (response.status === 429 && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return loadDisambiguationOptions(title, attempt + 1);
+      }
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const htmlContent = await response.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, 'text/html');
+      
+      const options: Array<{title: string, description: string, url: string}> = [];
+      
+      const searchTerms = [
+        title,
+        `${title} software development`,
+        `${title} methodology`,
+        `${title} programming`,
+        `${title} technique`,
+        `${title} practice`,
+        title.split(' ')[0],
+        title.split(' ').slice(-1)[0]
+      ].filter(term => term && term.length >= 2);
+      
+      let searchResponse = null;
+      let searchData = null;
+      
+      for (const searchTerm of searchTerms) {
+        if (!searchTerm || searchTerm.length < 2) continue;
+        
+        searchResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchTerm)}&limit=15&namespace=0&format=json&origin=*`);
+        if (searchResponse.ok) {
+          searchData = await searchResponse.json();
+          if (searchData[1] && Array.isArray(searchData[1]) && searchData[1].length > 0) {
+            break;
+          }
+        }
+      }
+      
+      if (searchData && searchData[1] && Array.isArray(searchData[1])) {
+        const titles = searchData[1] || [];
+        const descriptions = searchData[2] || [];
+        const urls = searchData[3] || [];
+        
+        for (let i = 0; i < titles.length; i++) {
+          const wikiTitle = titles[i];
+          if (wikiTitle && wikiTitle !== title && !wikiTitle.includes('(disambiguation)')) {
+            options.push({
+              title: wikiTitle,
+              description: descriptions[i] || '',
+              url: urls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiTitle)}`
+            });
+          }
+        }
+      }
+      
+      if (options.length === 0) {
+        const broaderSearchResponse = await fetch(`https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(title)}&limit=20&namespace=0&format=json&origin=*`);
+        
+        if (broaderSearchResponse.ok) {
+          const broaderData = await broaderSearchResponse.json();
+          const broaderTitles = broaderData[1] || [];
+          const broaderDescriptions = broaderData[2] || [];
+          const broaderUrls = broaderData[3] || [];
+          
+          for (let i = 0; i < broaderTitles.length; i++) {
+            const wikiTitle = broaderTitles[i];
+            if (wikiTitle && wikiTitle !== title && !wikiTitle.includes('(disambiguation)')) {
+              options.push({
+                title: wikiTitle,
+                description: broaderDescriptions[i] || '',
+                url: broaderUrls[i] || `https://en.wikipedia.org/wiki/${encodeURIComponent(wikiTitle)}`
+              });
+            }
+          }
+        }
+      }
+      
+      if (options.length === 0) {
+        const mainContent = doc.querySelector('.mw-parser-output');
+        if (mainContent) {
+          const allLinks = mainContent.querySelectorAll('a[href^="/wiki/"]');
+          
+          allLinks.forEach((link) => {
+            const href = link.getAttribute('href');
+            const title = link.textContent?.trim();
+            
+            if (href && title && 
+                !href.includes(':') && 
+                !href.includes('#') && 
+                !href.includes('Special:') &&
+                !href.includes('File:') &&
+                !href.includes('Category:') &&
+                !href.includes('Template:') &&
+                !href.includes('Help:') &&
+                !href.includes('Wikipedia:') &&
+                !href.includes('Talk:') &&
+                !href.includes('User:') &&
+                !href.includes('Portal:') &&
+                title.length > 0) {
+              
+              const wikiTitle = decodeURIComponent(href.replace('/wiki/', ''));
+              
+              if (wikiTitle !== pageTitle && wikiTitle.length > 0) {
+                let description = '';
+                const parent = link.parentElement;
+                if (parent) {
+                  const parentText = parent.textContent?.trim() || '';
+                  const linkText = link.textContent?.trim() || '';
+                  description = parentText.replace(linkText, '').replace(/^[,\s-]+/, '').trim();
+                }
+                
+                const exists = options.some(opt => opt.title === wikiTitle);
+                if (!exists) {
+                  options.push({
+                    title: wikiTitle,
+                    description: description,
+                    url: `https://en.wikipedia.org${href}`
+                  });
+                }
+              }
+            }
+          });
+        }
+      }
+      
+      disambiguationOptions = options.slice(0, 20);
+      
+      if (disambiguationOptions.length > 0) {
+        const bestMatch = disambiguationOptions[0];
+        if (bestMatch.title.toLowerCase().includes(title.toLowerCase()) && 
+            !bestMatch.title.includes('(disambiguation)')) {
+          goto(`/page/${pageId}/${encodeURIComponent(bestMatch.title)}`);
+          return;
+        }
+      }
+      
+      if (disambiguationOptions.length === 0) {
+        error = 'No disambiguation options found';
+      }
+      
+    } catch (e) {
+      console.error('Failed to load disambiguation options:', e);
+      error = 'Failed to load disambiguation options';
+    } finally {
+      isLoadingDisambiguation = false;
+    }
+  }
+
   async function loadArticle(attempt = 0) {
     try {
       if (!pageId || !pageTitle) {
@@ -529,7 +729,10 @@
       const data = await response.json();
       
       if (data.type === 'disambiguation') {
-        throw new Error('This is a disambiguation page. Please select a specific topic.');
+        isDisambiguationPage = true;
+        isLoading = false;
+        await loadDisambiguationOptions(pageTitle);
+        return;
       }
       
       articleData = {
@@ -587,15 +790,15 @@
     };
   });
   
-  $: if (articleData && showAISummary && !aiSummary && !isGeneratingSummary) {
+  $: if (articleData && articleData.title && articleData.extract && showAISummary && !aiSummary && !isGeneratingSummary) {
     generateAISummary(articleData.title, articleData.extract);
   }
   
-  $: if (articleData && !isGeneratingSuggestions && suggestedQuestions.length === 5 && suggestedQuestions[0] === 'What are the main points?') {
+  $: if (articleData && articleData.title && articleData.extract && !isGeneratingSuggestions && suggestedQuestions.length === 5 && suggestedQuestions[0] === 'What are the main points?') {
     generateSuggestedQuestions(articleData.title, articleData.extract);
   }
   
-  $: if (articleData && !isCheckingStock && !stockData) {
+  $: if (articleData && articleData.title && articleData.extract && !isCheckingStock && !stockData) {
     checkStockInfo(articleData.title, articleData.extract);
   }
   
@@ -608,13 +811,52 @@
 
 <div class="article-page">
     <button class="back-btn top-right" on:click={() => goto('/')}>Back <ArrowLeft size={18} style="vertical-align:middle;margin-left:4px;"/></button>
-    {#if error}
+    {#if error && !isDisambiguationPage}
       <div class="error-container">
         <div class="error-content">
           <h1 class="error-title">Error</h1>
           <p class="error-message">{error}</p>
           <div class="button-group">
             <button class="button button-primary" on:click={() => goto('/read')}>
+              Back to Search
+            </button>
+          </div>
+        </div>
+      </div>
+    {:else if isDisambiguationPage}
+      <div class="disambiguation-container">
+        <div class="disambiguation-content">
+          <h1 class="disambiguation-title">Multiple topics found for "{pageTitle}"</h1>
+          <p class="disambiguation-subtitle">Searching for the most relevant article...</p>
+          
+          {#if isLoadingDisambiguation}
+            <div class="loading-message">
+              <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <span class="loading-text">Finding the best match...</span>
+              </div>
+            </div>
+          {:else}
+            <div class="search-results">
+              <p>Found {disambiguationOptions.length} related articles. Click to view:</p>
+              <div class="disambiguation-options">
+                {#each disambiguationOptions as option}
+                  <button 
+                    class="disambiguation-button" 
+                    on:click={() => goto(`/page/${pageId}/${encodeURIComponent(option.title)}`)}
+                  >
+                    <div class="option-title">{option.title}</div>
+                    {#if option.description}
+                      <div class="option-description">{option.description}</div>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          
+          <div class="disambiguation-actions">
+            <button class="button button-secondary" on:click={() => goto('/read')}>
               Back to Search
             </button>
           </div>
@@ -642,7 +884,7 @@
               <div class="content-body">
                 {#if !showAISummary}
                   <div class="prose">
-                    {articleData.extract}
+                    {articleData.extract || 'No content available'}
                   </div>
                 {:else if aiSummary}
                   <div class="ai-summary">{aiSummary}</div>
@@ -666,79 +908,120 @@
             
 
 
-            <div class="question-section redesigned">
-              <div class="question-header">
-                <h3 class="question-title">Ask a Question</h3>
-                <p class="question-subtitle">Get specific answers about this topic</p>
+            <div class="chat-section">
+              <div class="chat-header">
+                <h3 class="chat-title">Chat with AI</h3>
+                <p class="chat-subtitle">Ask questions about this topic</p>
               </div>
-              <div class="question-card">
-                <div class="question-input-row">
-                  <input
-                    type="text"
-                    bind:value={questionInput}
-                    placeholder="Type your question..."
-                    class="question-input-lg"
-                    on:keydown={(e) => {
-                      if (e.key === 'Enter' && questionInput.trim()) {
-                        askQuestion(questionInput, articleData.title, articleData.extract);
-                      }
-                    }}
-                  />
-                  <button
-                    class="ask-button-lg"
-                    on:click={() => askQuestion(questionInput, articleData.title, articleData.extract)}
-                    disabled={isAskingQuestion || !questionInput.trim()}
-                  >
-                    {isAskingQuestion ? 'Asking...' : 'Ask'}
-                  </button>
+              
+              <div class="chat-container">
+                <div class="chat-input-area">
+                  <div class="input-wrapper">
+                    <input
+                      type="text"
+                      bind:value={questionInput}
+                      placeholder="Ask anything about this topic..."
+                      class="chat-input"
+                                              on:keydown={(e) => {
+                          if (e.key === 'Enter' && questionInput.trim() && articleData && articleData.title && articleData.extract) {
+                            askQuestion(questionInput, articleData.title, articleData.extract);
+                          }
+                        }}
+                    />
+                    <button
+                      class="send-button"
+                      on:click={() => {
+                        if (articleData && articleData.title && articleData.extract) {
+                          askQuestion(questionInput, articleData.title, articleData.extract);
+                        }
+                      }}
+                      disabled={isAskingQuestion || !questionInput.trim()}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                <hr class="question-divider" />
+
                 {#if !showQuestionAnswer && !isAskingQuestion}
-                  <div class="suggestions-section">
-                    <div class="suggestions-title">Suggestions:</div>
-                    <div class="suggestions-list-lg">
+                  <div class="suggestions-area">
+                    <div class="suggestions-header">Quick questions:</div>
+                    <div class="suggestions-grid">
                       {#each suggestedQuestions as suggestion}
                         <button
-                          class="suggestion-button-lg"
+                          class="suggestion-chip"
                           on:click={() => {
-                            questionInput = suggestion;
-                            askQuestion(suggestion, articleData.title, articleData.extract);
+                            const cleanSuggestion = suggestion.replace(/<think>.*?<\/think>/gs, '').trim();
+                            questionInput = cleanSuggestion;
+                            if (articleData && articleData.title && articleData.extract) {
+                              askQuestion(cleanSuggestion, articleData.title, articleData.extract);
+                            }
                           }}
                           disabled={isGeneratingSuggestions}
                         >
-                          {suggestion}
+                          {suggestion.replace(/<think>.*?<\/think>/gs, '').trim()}
                         </button>
                       {/each}
                     </div>
                   </div>
                 {/if}
+
                 {#if showQuestionAnswer}
-                  <div class="answer-section-lg">
+                  <div class="chat-messages">
                     {#if questionAnswer}
-                      <div class="answer-content-lg">
-                        <h4 class="answer-title-lg">Answer</h4>
-                        <div class="answer-text-lg">{questionAnswer}</div>
+                      <div class="message user-message">
+                        <div class="message-avatar">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                          </svg>
+                        </div>
+                        <div class="message-content">
+                          <div class="message-text">{questionInput || 'Question'}</div>
+                        </div>
+                      </div>
+                      
+                      <div class="message ai-message">
+                        <div class="message-avatar">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                          </svg>
+                        </div>
+                        <div class="message-content">
+                          <div class="message-text">{questionAnswer}</div>
+                        </div>
                       </div>
                     {:else if isAskingQuestion}
-                      <div class="loading-message">
-                        <div class="loading-content">
-                          <div class="loading-spinner"></div>
-                          <span class="loading-text">Finding answer...</span>
+                      <div class="message ai-message">
+                        <div class="message-avatar">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                          </svg>
+                        </div>
+                        <div class="message-content">
+                          <div class="typing-indicator">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                          </div>
                         </div>
                       </div>
                     {/if}
                   </div>
                 {/if}
               </div>
+
               {#if questionHistory.length > 0}
-                <div class="history-section-lg">
-                  <h4 class="history-title-lg">Recent Questions</h4>
-                  <div class="history-list-lg">
-                    {#each questionHistory as item}
-                      <div class="history-item-lg">
-                        <div class="history-question-lg">{item.question}</div>
-                        <div class="history-answer-lg">{item.answer}</div>
-                        <div class="history-time-lg">{item.timestamp.toLocaleTimeString()}</div>
+                <div class="chat-history">
+                  <div class="history-header">
+                    <h4 class="history-title">Recent conversations</h4>
+                  </div>
+                  <div class="history-list">
+                    {#each questionHistory as item (item.timestamp ? item.timestamp.getTime() : Math.random())}
+                      <div class="history-item">
+                        <div class="history-question">{item.question}</div>
+                        <div class="history-answer">{item.answer}</div>
+                        <div class="history-time">{item.timestamp ? item.timestamp.toLocaleTimeString() : 'Unknown time'}</div>
                       </div>
                     {/each}
                   </div>
@@ -754,13 +1037,13 @@
                 <div class="stock-content">
                   <div class="stock-header">
                     <div class="stock-symbol">{stockData.symbol}</div>
-                    <div class="stock-price">${stockData.price.toFixed(2)}</div>
-                    <div class="stock-change {stockData.change >= 0 ? 'positive' : 'negative'}">
-                      {stockData.change >= 0 ? '+' : ''}{stockData.change.toFixed(2)} ({stockData.changePercent.toFixed(2)}%)
-                    </div>
+                                      <div class="stock-price">${typeof stockData.price === 'number' ? stockData.price.toFixed(2) : 'N/A'}</div>
+                  <div class="stock-change {typeof stockData.change === 'number' && stockData.change >= 0 ? 'positive' : 'negative'}">
+                    {typeof stockData.change === 'number' ? (stockData.change >= 0 ? '+' : '') + stockData.change.toFixed(2) : 'N/A'} ({typeof stockData.changePercent === 'number' ? stockData.changePercent.toFixed(2) : 'N/A'}%)
+                  </div>
                   </div>
                   <div class="stock-volume">
-                    Volume: {stockData.volume.toLocaleString()}
+                    Volume: {typeof stockData.volume === 'number' ? stockData.volume.toLocaleString() : 'N/A'}
                   </div>
                   {#if stockData.chartData && stockData.chartData.length > 0}
                     <div class="stock-chart">
@@ -770,8 +1053,8 @@
                       <div class="chart-container">
                         <div class="price-labels">
                           {#each Array.from({length: 6}, (_, i) => i) as i}
-                            {@const price = stockData.maxPrice - (i / 5) * (stockData.maxPrice - stockData.minPrice)}
-                            <div class="price-label">${price.toFixed(2)}</div>
+                            {@const price = typeof stockData.maxPrice === 'number' && typeof stockData.minPrice === 'number' ? stockData.maxPrice - (i / 5) * (stockData.maxPrice - stockData.minPrice) : 0}
+                            <div class="price-label">${typeof price === 'number' ? price.toFixed(2) : 'N/A'}</div>
                           {/each}
                         </div>
                         <div class="chart-area">
@@ -793,10 +1076,11 @@
                             
                             <path 
                               d={stockData.chartData.map((point, index) => {
+                                if (!point || typeof point.price !== 'number' || typeof stockData.minPrice !== 'number' || typeof stockData.maxPrice !== 'number') return '';
                                 const x = (index / (stockData.chartData.length - 1)) * 400;
                                 const y = 20 + 160 - ((point.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160;
                                 return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-                              }).join(' ')}
+                              }).filter((d: string) => d !== '').join(' ')}
                               stroke="#3b82f6" 
                               stroke-width="3" 
                               fill="none" 
@@ -812,60 +1096,65 @@
                             </defs>
                             <path 
                               d={`M 0 180 ${stockData.chartData.map((point, index) => {
+                                if (!point || typeof point.price !== 'number' || typeof stockData.minPrice !== 'number' || typeof stockData.maxPrice !== 'number') return '';
                                 const x = (index / (stockData.chartData.length - 1)) * 400;
                                 const y = 20 + 160 - ((point.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160;
                                 return `L ${x} ${y}`;
-                              }).join(' ')} L 400 180 Z`}
+                              }).filter((d: string) => d !== '').join(' ')} L 400 180 Z`}
                               fill="url(#chartGradient)"
                             />
                             
                             {#each stockData.chartData as point, index}
                               {@const x = (index / (stockData.chartData.length - 1)) * 400}
-                              {@const y = 20 + 160 - ((point.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160}
+                              {@const y = point && typeof point.price === 'number' && typeof stockData.minPrice === 'number' && typeof stockData.maxPrice === 'number' ? 20 + 160 - ((point.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160 : 0}
                               {@const isHovered = hoveredPoint && hoveredPoint.index === index}
-                              <circle 
-                                cx={x} 
-                                cy={y} 
-                                r={isHovered ? "6" : "3"} 
-                                fill={isHovered ? "#1d4ed8" : "#3b82f6"}
-                                stroke={isHovered ? "white" : "none"}
-                                stroke-width={isHovered ? "2" : "0"}
-                                class="chart-point"
-                                style="cursor: pointer; transition: all 0.2s ease;"
-                              />
+                              {#if point && typeof point.price === 'number'}
+                                <circle 
+                                  cx={x} 
+                                  cy={y} 
+                                  r={isHovered ? "6" : "3"} 
+                                  fill={isHovered ? "#1d4ed8" : "#3b82f6"}
+                                  stroke={isHovered ? "white" : "none"}
+                                  stroke-width={isHovered ? "2" : "0"}
+                                  class="chart-point"
+                                  style="cursor: pointer; transition: all 0.2s ease;"
+                                />
+                              {/if}
                             {/each}
                             
                             {#if stockData.chartData.length > 0}
                               {@const lastIndex = stockData.chartData.length - 1}
                               {@const lastPoint = stockData.chartData[lastIndex]}
                               {@const lastX = (lastIndex / (stockData.chartData.length - 1)) * 400}
-                              {@const lastY = 20 + 160 - ((lastPoint.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160}
+                              {@const lastY = lastPoint && typeof lastPoint.price === 'number' && typeof stockData.minPrice === 'number' && typeof stockData.maxPrice === 'number' ? 20 + 160 - ((lastPoint.price - stockData.minPrice) / (stockData.maxPrice - stockData.minPrice)) * 160 : 0}
                               {@const isLastHovered = hoveredPoint && hoveredPoint.index === lastIndex}
-                              <circle 
-                                cx={lastX} 
-                                cy={lastY} 
-                                r={isLastHovered ? "8" : "6"} 
-                                fill="white" 
-                                stroke={isLastHovered ? "#1d4ed8" : "#3b82f6"} 
-                                stroke-width={isLastHovered ? "3" : "2"}
-                                style="transition: all 0.2s ease;"
-                              />
+                              {#if lastPoint && typeof lastPoint.price === 'number'}
+                                <circle 
+                                  cx={lastX} 
+                                  cy={lastY} 
+                                  r={isLastHovered ? "8" : "6"} 
+                                  fill="white" 
+                                  stroke={isLastHovered ? "#1d4ed8" : "#3b82f6"} 
+                                  stroke-width={isLastHovered ? "3" : "2"}
+                                  style="transition: all 0.2s ease;"
+                                />
+                              {/if}
                             {/if}
                           </svg>
                           
-                          {#if hoveredPoint}
+                          {#if hoveredPoint && typeof tooltipPosition.x === 'number' && typeof tooltipPosition.y === 'number'}
                             <div 
                               class="chart-tooltip"
                               style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px;"
                             >
-                              <div class="tooltip-content">
-                                <div class="tooltip-date">
-                                  {new Date(hoveredPoint.time).toLocaleDateString()}
-                                </div>
-                                <div class="tooltip-price">
-                                  ${hoveredPoint.price.toFixed(2)}
-                                </div>
+                                                          <div class="tooltip-content">
+                              <div class="tooltip-date">
+                                {hoveredPoint.time ? new Date(hoveredPoint.time).toLocaleDateString() : 'Unknown date'}
                               </div>
+                              <div class="tooltip-price">
+                                ${typeof hoveredPoint.price === 'number' ? hoveredPoint.price.toFixed(2) : 'N/A'}
+                              </div>
+                            </div>
                             </div>
                           {/if}
                         </div>
@@ -1123,6 +1412,103 @@
     max-width: 448px;
     margin: 0 auto;
     text-align: center;
+  }
+  
+  .disambiguation-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 32px 16px;
+  }
+  
+  .disambiguation-content {
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    padding: 48px;
+    text-align: center;
+  }
+  
+  .disambiguation-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 16px;
+  }
+  
+  .disambiguation-subtitle {
+    font-size: 1.125rem;
+    color: #6b7280;
+    margin-bottom: 32px;
+  }
+  
+  .disambiguation-options {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  
+  .disambiguation-button {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+  }
+  
+  .disambiguation-button:hover {
+    background-color: #f3f4f6;
+    border-color: #d1d5db;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .disambiguation-button:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .option-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 8px;
+  }
+  
+  .option-description {
+    font-size: 0.875rem;
+    color: #6b7280;
+    line-height: 1.5;
+  }
+  
+  .disambiguation-actions {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+  }
+  
+  .button-secondary {
+    background-color: #6b7280;
+    color: white;
+  }
+  
+  .button-secondary:hover {
+    background-color: #4b5563;
+  }
+  
+  .no-options-message {
+    text-align: center;
+    padding: 32px;
+    color: #6b7280;
+  }
+  
+  .no-options-message p {
+    font-size: 1.125rem;
+    margin: 0;
   }
   
   .error-content {
@@ -1914,138 +2300,283 @@
       padding: 24px;
     }
   }
-  .question-section.redesigned {
+  .chat-section {
     margin-top: 40px;
     margin-bottom: 40px;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
   }
-  .question-card {
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    padding: 32px 24px;
-    max-width: 600px;
-    margin: 0 auto;
-  }
-  .question-header {
+  
+  .chat-header {
     text-align: center;
-    margin-bottom: 16px;
+    margin-bottom: 24px;
   }
-  .question-title {
-    font-size: 1.25rem;
+  
+  .chat-title {
+    font-size: 1.5rem;
     font-weight: 700;
+    color: #111827;
+    margin-bottom: 8px;
+  }
+  
+  .chat-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+  }
+  
+  .chat-container {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+  }
+  
+  .chat-input-area {
+    padding: 24px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  
+  .input-wrapper {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .chat-input {
+    flex: 1;
+    padding: 16px 20px;
+    font-size: 1rem;
+    border-radius: 12px;
+    border: 2px solid #e5e7eb;
+    background: #f9fafb;
+    outline: none;
+    transition: all 0.2s ease;
+    color: #111827;
+  }
+  
+  .chat-input:focus {
+    border-color: #3b82f6;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  .chat-input::placeholder {
+    color: #9ca3af;
+  }
+  
+  .send-button {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  .question-input-row {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  .question-input-lg {
-    flex: 1;
-    padding: 16px 18px;
-    font-size: 1.1rem;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    background: #f9fafb;
-    outline: none;
-    transition: border 0.2s;
-  }
-  .question-input-lg:focus {
-    border-color: #3b82f6;
-  }
-  .ask-button-lg {
-    padding: 0 24px;
-    background: #3b82f6;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: #fff;
     border: none;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    font-weight: 600;
+    border-radius: 12px;
     cursor: pointer;
-    transition: background 0.2s;
-    height: 48px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
   }
-  .ask-button-lg:disabled {
-    background: #a5b4fc;
+  
+  .send-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+  
+  .send-button:disabled {
+    background: #9ca3af;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
-  .question-divider {
-    border: none;
-    border-top: 1px solid #e5e7eb;
-    margin: 16px 0;
+  
+  .suggestions-area {
+    padding: 20px 24px;
+    background: #f8fafc;
   }
-  .suggestions-section {
+  
+  .suggestions-header {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
     margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
-  .suggestions-title {
-    font-size: 1rem;
-    font-weight: 500;
-    margin-bottom: 8px;
-  }
-  .suggestions-list-lg {
+  
+  .suggestions-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
-  .suggestion-button-lg {
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 8px 14px;
-    font-size: 0.98rem;
+  
+  .suggestion-chip {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 0.875rem;
     color: #374151;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
+    white-space: nowrap;
   }
-  .suggestion-button-lg:hover {
-    background: #e0e7ff;
+  
+  .suggestion-chip:hover {
+    background: #3b82f6;
+    color: #fff;
+    border-color: #3b82f6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
   }
-  .answer-section-lg {
-    margin-top: 18px;
-    background: #f8fafc;
-    border-radius: 8px;
-    padding: 18px 16px;
+  
+  .chat-messages {
+    padding: 24px;
+    max-height: 400px;
+    overflow-y: auto;
   }
-  .answer-title-lg {
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  .answer-text-lg {
-    font-size: 1rem;
-    color: #374151;
-  }
-  .history-section-lg {
-    margin-top: 32px;
-  }
-  .history-title-lg {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  .history-list-lg {
+  
+  .message {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    margin-bottom: 20px;
   }
-  .history-item-lg {
+  
+  .message-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  
+  .user-message .message-avatar {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+  }
+  
+  .ai-message .message-avatar {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+  }
+  
+  .message-content {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .message-text {
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  
+  .user-message .message-text {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    margin-left: auto;
+    max-width: 80%;
+  }
+  
+  .ai-message .message-text {
     background: #f3f4f6;
-    border-radius: 6px;
-    padding: 10px 14px;
-  }
-  .history-question-lg {
-    font-weight: 500;
-    color: #1e293b;
-  }
-  .history-answer-lg {
     color: #374151;
-    margin-top: 4px;
+    border: 1px solid #e5e7eb;
   }
-  .history-time-lg {
-    font-size: 0.85rem;
-    color: #64748b;
-    margin-top: 2px;
+  
+  .typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px;
+    background: #f3f4f6;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    width: fit-content;
+  }
+  
+  .typing-dot {
+    width: 8px;
+    height: 8px;
+    background: #9ca3af;
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out;
+  }
+  
+  .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+  .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+  
+  @keyframes typing {
+    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+  
+  .chat-history {
+    margin-top: 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+  }
+  
+  .history-header {
+    padding: 20px 24px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  .history-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+  }
+  
+  .history-list {
+    padding: 16px 24px;
+  }
+  
+  .history-item {
+    padding: 16px;
+    border-radius: 8px;
+    background: #f9fafb;
+    margin-bottom: 12px;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
+  }
+  
+  .history-item:hover {
+    background: #f3f4f6;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .history-question {
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+  }
+  
+  .history-answer {
+    color: #374151;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .history-time {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 500;
   }
 </style> 

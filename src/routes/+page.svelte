@@ -1031,41 +1031,39 @@
       <div class="search-container">
         <form on:submit|preventDefault={handleSearch}>
           <div class="search-input-wrapper">
-            <div class="search-input-container">
-              <div class="search-mode-toggle">
-                <button
-                  type="button"
-                  class="mode-button {searchMode === 'wiki' ? 'active' : ''}"
-                  on:click={() => searchMode = 'wiki'}
-                  title="Search Wikipedia"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="mode-button {searchMode === 'dictionary' ? 'active' : ''}"
-                  on:click={() => searchMode = 'dictionary'}
-                  title="Dictionary"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="mode-button {searchMode === 'image' ? 'active' : ''}"
-                  on:click={() => searchMode = 'image'}
-                  title="Search Images"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                  </svg>
-                </button>
-              </div>
-              <input
+                          <div class="search-input-container">
+                <div class="search-mode-toggle">
+                  <button
+                    type="button"
+                    class="mode-button {searchMode === 'wiki' ? 'active' : ''}"
+                    on:click={() => searchMode = 'wiki'}
+                    title="Search Wikipedia"
+                  >
+                    <Book size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    class="mode-button {searchMode === 'dictionary' ? 'active' : ''}"
+                    on:click={() => searchMode = 'dictionary'}
+                    title="Dictionary"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="mode-button {searchMode === 'image' ? 'active' : ''}"
+                    on:click={() => searchMode = 'image'}
+                    title="Search Images"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                  </button>
+                </div>
+                <input
                 bind:this={searchInput}
                 bind:value={searchQuery}
                 on:input={handleSearchInput}
@@ -1572,8 +1570,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
+    padding: 8px 12px;
     background: none;
     border: none;
     color: #6b7280;
@@ -1586,6 +1583,7 @@
   .mode-button:hover {
     background-color: #e5e7eb;
     color: #374151;
+    transform: translateY(-1px);
   }
   
   .mode-button.active {
@@ -1597,6 +1595,8 @@
   .mode-button svg {
     flex-shrink: 0;
   }
+  
+
 
   .followup-form {
     display: flex;

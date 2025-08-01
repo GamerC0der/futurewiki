@@ -1,10 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Book, MessageCircle } from 'lucide-svelte';
+  import { Book } from 'lucide-svelte';
   import { loadRecentSearches } from '$lib/storage';
   
   let recentSearches: string[] = [];
-  let conversationHistory: Array<{role: 'user' | 'assistant', content: string}> = [];
 
   function getWikiResult(search: string) {
     return { title: search, description: '', url: `https://en.wikipedia.org/wiki/${encodeURIComponent(search)}` };
@@ -48,31 +47,6 @@
       {@html emptySvg}
       <div class="history-empty-title">No Wiki History</div>
       <div class="history-empty-desc">Your recent Wikipedia searches will appear here.</div>
-    </div>
-    {/if}
-  </div>
-  <div class="history-section">
-    <div class="history-section-header">Chat</div>
-    {#if conversationHistory.length > 0}
-    <div class="history-cards-grid">
-      {#each conversationHistory.filter(msg => msg.role === 'user').slice(-12).reverse() as msg, i}
-        <div class="history-card history-card-chat fade-in">
-          <div class="history-card-avatar chat-avatar"><MessageCircle size={22} /></div>
-          <div class="history-card-header">
-            <span class="history-card-title">You</span>
-          </div>
-          <div class="history-card-desc">{msg.content}</div>
-          <div class="history-card-actions">
-            <a class="history-card-action" href="/explore?q={encodeURIComponent(msg.content)}">Chat Again</a>
-          </div>
-        </div>
-      {/each}
-    </div>
-    {:else}
-    <div class="history-empty-modern">
-      {@html emptySvg}
-      <div class="history-empty-title">No Chat History</div>
-      <div class="history-empty-desc">Your chat conversations will appear here.</div>
     </div>
     {/if}
   </div>
@@ -120,9 +94,6 @@
   .history-card-wiki {
     border-left: 5px solid #ececec;
   }
-  .history-card-chat {
-    border-left: 5px solid #ececec;
-  }
   .history-card-header {
     width: 100%;
     display: flex;
@@ -141,10 +112,7 @@
     height: 32px;
     margin-right: 4px;
   }
-  .history-card-chat .history-card-icon {
-    color: #3b82f6;
-    background: #f1f5f9;
-  }
+
   .history-card-title {
     font-size: 1.08rem;
     font-weight: 700;
@@ -154,9 +122,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .history-card-chat .history-card-title {
-    color: #3b82f6;
-  }
+
   .history-card-link {
     font-size: 0.92rem;
     color: #3b82f6;
@@ -256,9 +222,6 @@
   .history-card-wiki {
     border-left: 5px solid #ececec;
   }
-  .history-card-chat {
-    border-left: 5px solid #ececec;
-  }
   .history-card-avatar {
     display: flex;
     align-items: center;
@@ -274,10 +237,7 @@
     background: linear-gradient(135deg, #e0e7ef 60%, #f1f5f9 100%);
     color: #2563eb;
   }
-  .chat-avatar {
-    background: linear-gradient(135deg, #f1f5f9 60%, #e0e7ef 100%);
-    color: #3b82f6;
-  }
+
   .history-card-header {
     width: 100%;
     display: flex;
@@ -394,7 +354,7 @@
     color: #fff !important;
   }
 
-  .history-card:hover, .history-card:focus-within, .history-card-wiki:hover, .history-card-wiki:focus-within, .history-card-chat:hover, .history-card-chat:focus-within {
+  .history-card:hover, .history-card:focus-within, .history-card-wiki:hover, .history-card-wiki:focus-within {
     box-shadow: none !important;
     border-color: #ececec !important;
     background: rgba(255,255,255,0.75) !important;

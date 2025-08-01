@@ -1,15 +1,39 @@
 export function parseWikipediaContent(apiResponse: any): string {
     try {
-        const pages = apiResponse.query?.pages;
-        if (!pages) return '';
+        if (!apiResponse || typeof apiResponse !== 'object') {
+            return '';
+        }
         
-        const pageId = Object.keys(pages)[0];
+        const pages = apiResponse.query?.pages;
+        if (!pages || typeof pages !== 'object') {
+            return '';
+        }
+        
+        const pageIds = Object.keys(pages);
+        if (pageIds.length === 0) {
+            return '';
+        }
+        
+        const pageId = pageIds[0];
         const page = pages[pageId];
         
-        if (!page.revisions || !page.revisions[0]) return '';
+        if (!page || typeof page !== 'object') {
+            return '';
+        }
         
-        const htmlContent = page.revisions[0]['*'];
-        if (!htmlContent) return '';
+        if (!page.revisions || !Array.isArray(page.revisions) || page.revisions.length === 0) {
+            return '';
+        }
+        
+        const revision = page.revisions[0];
+        if (!revision || typeof revision !== 'object') {
+            return '';
+        }
+        
+        const htmlContent = revision['*'];
+        if (!htmlContent || typeof htmlContent !== 'string') {
+            return '';
+        }
         
         return htmlContent;
     } catch (error) {
@@ -19,7 +43,20 @@ export function parseWikipediaContent(apiResponse: any): string {
 }
 
 export function extractTextFromHTML(html: string): string {
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    return tempDiv.textContent || tempDiv.innerText || '';
+    if (!html || typeof html !== 'string') {
+        return '';
+    }
+    
+    try {
+        if (typeof document === 'undefined') {
+            return html.replace(/<[^>]*>/g, '');
+        }
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        return tempDiv.textContent || tempDiv.innerText || '';
+    } catch (error) {
+        console.error('Error extracting text from HTML:', error);
+        return html.replace(/<[^>]*>/g, '');
+    }
 }

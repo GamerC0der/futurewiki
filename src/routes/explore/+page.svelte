@@ -7,6 +7,8 @@
   let followUpInput = '';
   let conversationHistory: Array<{role: 'user' | 'assistant', content: string, timestamp: Date, id: string, imageUrl?: string}> = [];
   let suggestedFollowUps: string[] = [];
+  let isGeneratingImage = false;
+  let isGeneratingFollowUps = false;
 
 
   let chatContainer: HTMLElement;
@@ -267,10 +269,10 @@
     isGeneratingWelcome = true;
     try {
       const welcomeMessages = [
-        "Hi there! 🌟 Ready to explore, learn, and uncover answers? I'm your AI buddy—what question ignites your curiosity today? 🔍✨",
-        "Hello! 🚀 Let's dive into knowledge together! What fascinating topic would you like to explore today? I'm here to help! 💡",
-        "Welcome! ✨ Ready to discover amazing things? Ask me anything—I'm your AI companion for learning adventures! 🌟",
-        "Hey there! 🔍 Curious about something? I'm your AI buddy ready to explore the world of knowledge with you! Let's start! ✨"
+        "Hi there! Ready to explore, learn, and uncover answers? I'm your AI buddy—what question ignites your curiosity today?",
+        "Hello! Let's dive into knowledge together! What fascinating topic would you like to explore today? I'm here to help!",
+        "Welcome! Ready to discover amazing things? Ask me anything—I'm your AI companion for learning adventures!",
+        "Hey there! Curious about something? I'm your AI buddy ready to explore the world of knowledge with you! Let's start!"
       ];
       
       aiWelcomeMessage = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
@@ -346,11 +348,11 @@
         .replace(/show\s+me\s+image\s+/i, '')
         .trim();
       
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imageDescription)}`;
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imageDescription)}?nologo=true`;
       
       const assistantMessage = {
         role: 'assistant' as const,
-        content: `Here's your generated image of: **${imageDescription}**`,
+        content: `✨ Here's your AI-generated image of **${imageDescription}**! Feel free to ask for modifications or generate more images.`,
         timestamp: new Date(),
         id: generateId(),
         imageUrl: pollinationsUrl
@@ -427,15 +429,24 @@
           <Bot size={48} />
         </div>
         <h2 class="welcome-title">Welcome to FutureWiki AI</h2>
-        <p class="welcome-subtitle">
+        <div class="welcome-subtitle">
           {#if aiWelcomeMessage}
-            {aiWelcomeMessage}
+            <div class="welcome-message-with-icons">
+              <Sparkles size={14} class="welcome-icon-inline" />
+              {aiWelcomeMessage}
+            </div>
           {:else if isGeneratingWelcome}
-            <span class="generating-welcome">Generating personalized welcome...</span>
+            <span class="generating-welcome">
+              <Loader2 size={16} class="welcome-icon-inline spinning" />
+              Generating personalized welcome...
+            </span>
           {:else}
-            {fallbackWelcomeMessages[Math.floor(Math.random() * fallbackWelcomeMessages.length)]}
+            <div class="welcome-message-with-icons">
+              <Zap size={14} class="welcome-icon-inline" />
+              {fallbackWelcomeMessages[Math.floor(Math.random() * fallbackWelcomeMessages.length)]}
+            </div>
           {/if}
-        </p>
+        </div>
         
         <div class="quick-prompts">
           <h3 class="quick-prompts-title">
@@ -486,7 +497,24 @@
               {@html convertMarkdownToHtml(msg.content)}
               {#if msg.imageUrl}
                 <div class="generated-image">
-                  <img src={msg.imageUrl} alt="Generated image" loading="lazy" />
+                  <div class="image-container">
+                    <img 
+                      src={msg.imageUrl} 
+                      alt="Generated image" 
+                      loading="lazy"
+                      on:load={() => {}}
+                      on:error={() => {}}
+                    />
+                    <div class="image-overlay">
+                      <button class="image-action-btn" title="Open in new tab" on:click={() => window.open(msg.imageUrl, '_blank')}>
+                        <Image size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div class="image-caption">
+                    <Image size={14} />
+                    <span>AI Generated Image</span>
+                  </div>
                 </div>
               {/if}
             </div>
@@ -684,6 +712,29 @@
   .generating-welcome {
     color: #059669;
     font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .welcome-message-with-icons {
+    text-align: center;
+  }
+
+  .welcome-icon-inline {
+    color: #3b82f6;
+    vertical-align: middle;
+    margin: 0 4px;
+  }
+
+  .welcome-icon-inline.spinning {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .quick-prompts {
@@ -905,18 +956,76 @@
   }
 
   .generated-image {
-    margin-top: 16px;
-    border-radius: 12px;
+    margin-top: 20px;
+    max-width: 500px;
+  }
+
+  .image-container {
+    position: relative;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    transition: all 0.3s ease;
+  }
+
+  .image-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
   }
 
   .generated-image img {
     width: 100%;
     height: auto;
     display: block;
-    max-width: 500px;
-    border-radius: 12px;
+    border-radius: 16px;
+    transition: transform 0.3s ease;
+  }
+
+  .image-container:hover img {
+    transform: scale(1.02);
+  }
+
+  .image-overlay {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .image-container:hover .image-overlay {
+    opacity: 1;
+  }
+
+  .image-action-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    color: #374151;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
+  }
+
+  .image-action-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
+    color: #1f2937;
+  }
+
+  .image-caption {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 500;
   }
 
   .typing-indicator {
